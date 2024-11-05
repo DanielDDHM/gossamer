@@ -229,3 +229,5 @@ toolchain go1.23.2
 replace github.com/tetratelabs/wazero => github.com/ChainSafe/wazero v0.0.0-20240319130522-78b21a59bd5f
 
 replace github.com/centrifuge/go-substrate-rpc-client/v4 => github.com/timwu20/go-substrate-rpc-client/v4 v4.0.0-20231110032757-3d8e441b7303
+
+replace github.com/elastic/go-freelru => github.com/timwu20/go-freelru v0.0.0-20241023201517-deb64adeae4c
