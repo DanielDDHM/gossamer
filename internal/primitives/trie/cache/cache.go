@@ -60,7 +60,7 @@ func (nc nodeCached[H]) ByteSize() uint {
 //
 // This cache should be used per state instance created by the backend. One state instance is
 // referring to the state of one block. It will cache all the accesses that are done to the state
-// which could not be fullfilled by the [SharedTrieCache]. These locally cached items are merged
+// which could not be fulfilled by the [SharedTrieCache]. These locally cached items are merged
 // back to the shared trie cache when this instance is dropped.
 //
 // When using [LocalTrieCache.TrieCache] or [LocalTrieCache.TrieCacheMut] it will lock mutexes.
@@ -193,7 +193,7 @@ type valueCache[H runtime.Hash] interface {
 // This is used for example when a new trie is being build, to cache new values.
 type freshValueCache[H runtime.Hash] map[string]triedb.CachedValue[H]
 
-func (fvc *freshValueCache[H]) get(key []byte, sharedCache *SharedTrieCache[H]) triedb.CachedValue[H] {
+func (fvc *freshValueCache[H]) get(key []byte, sharedCache *SharedTrieCache[H]) triedb.CachedValue[H] { //nolint:unused
 	val, ok := (*fvc)[string(key)]
 	if ok {
 		return val
@@ -201,7 +201,7 @@ func (fvc *freshValueCache[H]) get(key []byte, sharedCache *SharedTrieCache[H]) 
 		return nil
 	}
 }
-func (fvc *freshValueCache[H]) insert(key []byte, value triedb.CachedValue[H]) {
+func (fvc *freshValueCache[H]) insert(key []byte, value triedb.CachedValue[H]) { //nolint:unused
 	(*fvc)[string(key)] = value
 }
 
@@ -212,7 +212,8 @@ type forStorageRootValueCache[H runtime.Hash] struct {
 	storageRoot            H
 }
 
-func (fsrvc forStorageRootValueCache[H]) get(key []byte, sharedCache *SharedTrieCache[H]) triedb.CachedValue[H] {
+func (fsrvc forStorageRootValueCache[H]) get( //nolint:unused
+	key []byte, sharedCache *SharedTrieCache[H]) triedb.CachedValue[H] {
 	// We first need to look up in the local cache and then the shared cache.
 	// It can happen that some value is cached in the shared cache, but the
 	// weak reference of the data can not be upgraded anymore. This for example
@@ -237,7 +238,7 @@ func (fsrvc forStorageRootValueCache[H]) get(key []byte, sharedCache *SharedTrie
 
 	return nil
 }
-func (fsrvc forStorageRootValueCache[H]) insert(key []byte, value triedb.CachedValue[H]) {
+func (fsrvc forStorageRootValueCache[H]) insert(key []byte, value triedb.CachedValue[H]) { //nolint:unused
 	vck := ValueCacheKey[H]{
 		StorageKey:  key,
 		StorageRoot: fsrvc.storageRoot,
@@ -285,13 +286,14 @@ func (tc *TrieCache[H]) MergeInto(local *LocalTrieCache[H], storageRoot H) {
 	}
 }
 
-func (tc *TrieCache[H]) GetOrInsertNode(hash H, fetchNode func() (triedb.CachedNode[H], error)) (triedb.CachedNode[H], error) {
+func (tc *TrieCache[H]) GetOrInsertNode(
+	hash H, fetchNode func() (triedb.CachedNode[H], error),
+) (triedb.CachedNode[H], error) {
 	var isLocalCacheHit bool = true
 
 	// First try to grab the node from the local cache.
 	var err error
-	var node *nodeCached[H]
-	local, ok := tc.localCache.Get(hash)
+	node, ok := tc.localCache.Get(hash)
 	if !ok {
 		isLocalCacheHit = false
 
@@ -299,7 +301,7 @@ func (tc *TrieCache[H]) GetOrInsertNode(hash H, fetchNode func() (triedb.CachedN
 		shared := tc.sharedCache.PeekNode(hash)
 		if shared != nil {
 			log.Printf("TRACE: Serving node from shared cache: %s\n", hash)
-			node = &nodeCached[H]{Node: shared, FromSharedCache: true}
+			node = nodeCached[H]{Node: shared, FromSharedCache: true}
 		} else {
 			// It was not in the shared cache; try fetching it from the database.
 			var fetched triedb.CachedNode[H]
@@ -309,21 +311,16 @@ func (tc *TrieCache[H]) GetOrInsertNode(hash H, fetchNode func() (triedb.CachedN
 				return nil, err
 			} else {
 				log.Printf("TRACE: Serving node from database: %s\n", hash)
-				node = &nodeCached[H]{Node: fetched, FromSharedCache: false}
+				node = nodeCached[H]{Node: fetched, FromSharedCache: false}
 			}
 		}
-		tc.localCache.Add(hash, *node)
-	} else {
-		node = &local
+		tc.localCache.Add(hash, node)
 	}
 
 	if isLocalCacheHit {
 		log.Printf("TRACE: Serving node from local cache: %s\n", hash)
 	}
 
-	if node == nil {
-		panic("you can always insert at least one element into the local cache; qed")
-	}
 	return node.Node, nil
 }
 

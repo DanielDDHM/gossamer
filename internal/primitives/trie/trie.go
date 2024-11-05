@@ -53,7 +53,7 @@ func DeltaTrieRoot[H runtime.Hash, Hasher runtime.Hasher[H]](
 	cache triedb.TrieCache[H],
 	stateVersion triedb.TrieLayout,
 ) (H, error) {
-	trieDB := triedb.NewTrieDB[H, Hasher](root, db, triedb.WithCache[H, Hasher](cache), triedb.WithRecorder[H, Hasher](recorder))
+	trieDB := triedb.NewTrieDB(root, db, triedb.WithCache[H, Hasher](cache), triedb.WithRecorder[H, Hasher](recorder))
 	trieDB.SetVersion(stateVersion)
 
 	slices.SortStableFunc(delta, func(a KeyValue, b KeyValue) int {
@@ -94,7 +94,7 @@ func ReadTrieValue[H runtime.Hash, Hasher runtime.Hasher[H]](
 	cache triedb.TrieCache[H],
 	stateVersion triedb.TrieLayout,
 ) ([]byte, error) {
-	trieDB := triedb.NewTrieDB[H, Hasher](root, db, triedb.WithCache[H, Hasher](cache), triedb.WithRecorder[H, Hasher](recorder))
+	trieDB := triedb.NewTrieDB(root, db, triedb.WithCache[H, Hasher](cache), triedb.WithRecorder[H, Hasher](recorder))
 	trieDB.SetVersion(stateVersion)
 	b, err := triedb.GetWith(trieDB, key, func(data []byte) []byte { return data })
 	if err != nil {
@@ -116,9 +116,9 @@ func ReadTrieValueWith[H runtime.Hash, Hasher runtime.Hasher[H]](
 	stateVersion triedb.TrieLayout,
 	query triedb.Query[[]byte],
 ) ([]byte, error) {
-	trieDB := triedb.NewTrieDB[H, Hasher](root, db, triedb.WithCache[H, Hasher](cache), triedb.WithRecorder[H, Hasher](recorder))
+	trieDB := triedb.NewTrieDB(root, db, triedb.WithCache[H, Hasher](cache), triedb.WithRecorder[H, Hasher](recorder))
 	trieDB.SetVersion(stateVersion)
-	b, err := triedb.GetWith[H, Hasher, []byte](trieDB, key, query)
+	b, err := triedb.GetWith(trieDB, key, query)
 	if err != nil {
 		return nil, err
 	}

@@ -264,7 +264,8 @@ func withTrieDB[H runtime.Hash, Hasher runtime.Hasher[H]](
 	}
 
 	withRecorderAndCache(tbe, &root, func(recorder triedb.TrieRecorder, cache triedb.TrieCache[H]) {
-		trieDB := triedb.NewTrieDB[H, Hasher](root, db, triedb.WithCache[H, Hasher](cache), triedb.WithRecorder[H, Hasher](recorder))
+		trieDB := triedb.NewTrieDB(
+			root, db, triedb.WithCache[H, Hasher](cache), triedb.WithRecorder[H, Hasher](recorder))
 		trieDB.SetVersion(ptrie.V1)
 		callback(trieDB)
 	})
@@ -299,7 +300,9 @@ func (tbe *trieBackendEssence[H, Hasher]) childRoot(childInfo storage.ChildInfo)
 
 // Return the next key in the child trie i.e. the minimum key that is strictly superior to
 // key in lexicographic order.
-func (tbe *trieBackendEssence[H, Hasher]) NextChildStorageKey(childInfo storage.ChildInfo, key []byte) (StorageKey, error) {
+func (tbe *trieBackendEssence[H, Hasher]) NextChildStorageKey(
+	childInfo storage.ChildInfo, key []byte,
+) (StorageKey, error) {
 	childRoot, err := tbe.childRoot(childInfo)
 	if err != nil {
 		return nil, err
@@ -312,7 +315,9 @@ func (tbe *trieBackendEssence[H, Hasher]) NextChildStorageKey(childInfo storage.
 }
 
 // Return next key from main trie or child trie by providing corresponding root.
-func (tbe *trieBackendEssence[H, Hasher]) NextStorageKeyFromRoot(root H, childInfo storage.ChildInfo, key []byte) (StorageKey, error) {
+func (tbe *trieBackendEssence[H, Hasher]) NextStorageKeyFromRoot(
+	root H, childInfo storage.ChildInfo, key []byte,
+) (StorageKey, error) {
 	var err error
 	var nextKey []byte
 	withTrieDB(tbe, root, childInfo, func(trie *triedb.TrieDB[H, Hasher]) {
@@ -359,7 +364,8 @@ func (tbe *trieBackendEssence[H, Hasher]) Storage(key []byte) (val StorageValue,
 // Returns the hash value
 func (tbe *trieBackendEssence[H, Hasher]) StorageHash(key []byte) (hash *H, err error) {
 	withRecorderAndCache[H, Hasher](tbe, nil, func(recorder triedb.TrieRecorder, cache triedb.TrieCache[H]) {
-		trieDB := triedb.NewTrieDB[H, Hasher](tbe.root, tbe, triedb.WithCache[H, Hasher](cache), triedb.WithRecorder[H, Hasher](recorder))
+		trieDB := triedb.NewTrieDB(
+			tbe.root, tbe, triedb.WithCache[H, Hasher](cache), triedb.WithRecorder[H, Hasher](recorder))
 		trieDB.SetVersion(ptrie.V1)
 		hash, err = trieDB.GetHash(key)
 	})
@@ -429,19 +435,22 @@ func (tbe *trieBackendEssence[H, Hasher]) ClosestMerkleValue(key []byte) (val tr
 }
 
 // Get the child closest merkle value at given key.
-func (tbe *trieBackendEssence[H, Hasher]) ChildClosestMerkleValue(childInfo storage.ChildInfo, key []byte) (val triedb.MerkleValue[H], err error) {
+func (tbe *trieBackendEssence[H, Hasher]) ChildClosestMerkleValue(
+	childInfo storage.ChildInfo, key []byte,
+) (val triedb.MerkleValue[H], err error) {
 	var childRoot H
 	root, err := tbe.childRoot(childInfo)
 	if err != nil {
 		return nil, err
 	}
 	if root == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil
 	}
 	childRoot = *root
 
 	withRecorderAndCache(tbe, &childRoot, func(recorder triedb.TrieRecorder, cache triedb.TrieCache[H]) {
-		val, err = trie.ReadChildTrieFirstDescendantValue[H, Hasher](childInfo.Keyspace(), tbe, tbe.root, key, recorder, cache, triedb.V1)
+		val, err = trie.ReadChildTrieFirstDescendantValue[H, Hasher](
+			childInfo.Keyspace(), tbe, tbe.root, key, recorder, cache, triedb.V1)
 	})
 	return
 }
@@ -506,18 +515,22 @@ func (tbe *trieBackendEssence[H, Hasher]) RawIter(args IterArgs) (*rawIter[H, Ha
 }
 
 // Return the storage root after applying the given delta.
-func (tbe *trieBackendEssence[H, Hasher]) StorageRoot(delta []Delta, stateVersion storage.StateVersion) (H, *trie.PrefixedMemoryDB[H, Hasher]) {
+func (tbe *trieBackendEssence[H, Hasher]) StorageRoot(
+	delta []Delta, stateVersion storage.StateVersion,
+) (H, *trie.PrefixedMemoryDB[H, Hasher]) {
 	writeOverlay := trie.NewPrefixedMemoryDB[H, Hasher]()
 
-	root := withRecorderAndCacheForStorageRoot[H, Hasher, H](tbe, nil, func(recorder triedb.TrieRecorder, cache triedb.TrieCache[H]) (*H, H) {
-		eph := newEphemeral[H, Hasher](tbe.BackendStorage(), writeOverlay)
-		root, err := trie.DeltaTrieRoot[H, Hasher](eph, tbe.root, delta, recorder, cache, stateVersion.TrieLayout())
-		if err != nil {
-			log.Printf("WARN: failed to write to trie: %v", err)
-			return nil, tbe.root
-		}
-		return &root, root
-	})
+	root := withRecorderAndCacheForStorageRoot(
+		tbe, nil, func(recorder triedb.TrieRecorder, cache triedb.TrieCache[H]) (*H, H) {
+			eph := newEphemeral[H, Hasher](tbe.BackendStorage(), writeOverlay)
+			root, err := trie.DeltaTrieRoot[H, Hasher](eph, tbe.root, delta, recorder, cache, stateVersion.TrieLayout())
+			if err != nil {
+				log.Printf("WARN: failed to write to trie: %v", err)
+				return nil, tbe.root
+			}
+			return &root, root
+		},
+	)
 
 	return root, writeOverlay
 }

@@ -13,9 +13,9 @@ import (
 // the storage values so that the partial storage backend can be reconstructed by a verifier that
 // does not already have access to the key-value pairs.
 //
-// The proof consists of the set of serialized nodes in the storage trie accessed when looking up
+// The proof consists of the set of serialised nodes in the storage trie accessed when looking up
 // the keys covered by the proof. Verifying the proof requires constructing the partial trie from
-// the serialized nodes and performing the key lookups.
+// the serialised nodes and performing the key lookups.
 type StorageProof struct {
 	trieNodes btree.Set[string]
 }

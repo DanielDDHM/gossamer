@@ -166,7 +166,9 @@ type Backend[Hash runtime.Hash, H runtime.Hasher[Hash]] interface {
 	// Calculate the child storage root, with given delta over what is already stored in
 	// the backend, and produce a "transaction" that can be used to commit. The second argument
 	// is true if child storage root equals default storage root.
-	ChildStorageRoot(childInfo storage.ChildInfo, delta []Delta, stateVersion storage.StateVersion) (Hash, bool, BackendTransaction[Hash, H])
+	ChildStorageRoot(
+		childInfo storage.ChildInfo, delta []Delta, stateVersion storage.StateVersion,
+	) (Hash, bool, BackendTransaction[Hash, H])
 
 	// Returns a lifetimeless raw storage iterator.
 	RawIter(args IterArgs) (StorageIterator[Hash, H], error)
@@ -181,8 +183,6 @@ type Backend[Hash runtime.Hash, H runtime.Hasher[Hash]] interface {
 	// in the backend, and produce a "transaction" that can be used to commit.
 	// Does include child storage updates.
 	FullStorageRoot(
-		delta []Delta,
-		childDeltas []ChildDelta,
-		stateVersion storage.StateVersion,
+		delta []Delta, childDeltas []ChildDelta, stateVersion storage.StateVersion,
 	) (Hash, BackendTransaction[Hash, H])
 }

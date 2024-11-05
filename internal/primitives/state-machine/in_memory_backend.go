@@ -35,7 +35,9 @@ func (tb *MemoryDBTrieBackend[H, Hasher]) clone() MemoryDBTrieBackend[H, Hasher]
 }
 
 // Copy the state, with applied updates
-func (tb *MemoryDBTrieBackend[H, Hasher]) update(changes []change, stateVersion storage.StateVersion) MemoryDBTrieBackend[H, Hasher] {
+func (tb *MemoryDBTrieBackend[H, Hasher]) update(
+	changes []change, stateVersion storage.StateVersion,
+) MemoryDBTrieBackend[H, Hasher] {
 	clone := tb.clone()
 	clone.insert(changes, stateVersion)
 	return clone
@@ -55,7 +57,7 @@ func (tb *MemoryDBTrieBackend[H, Hasher]) insert(changes []change, stateVersion 
 	var deltas []Delta
 	for _, change := range top {
 		for _, skv := range change.StorageCollection {
-			deltas = append(deltas, Delta{skv.StorageKey, skv.StorageValue})
+			deltas = append(deltas, Delta{Key: skv.StorageKey, Value: skv.StorageValue})
 		}
 	}
 
@@ -63,7 +65,7 @@ func (tb *MemoryDBTrieBackend[H, Hasher]) insert(changes []change, stateVersion 
 	for _, change := range child {
 		var delta []Delta
 		for _, skv := range change.StorageCollection {
-			delta = append(delta, Delta{skv.StorageKey, skv.StorageValue})
+			delta = append(delta, Delta{Key: skv.StorageKey, Value: skv.StorageValue})
 		}
 		childDeltas = append(childDeltas, ChildDelta{
 			ChildInfo: change.ChildInfo,

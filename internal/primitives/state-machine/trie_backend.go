@@ -117,7 +117,9 @@ func (tb *TrieBackend[H, Hasher]) ClosestMerkleValue(key []byte) (triedb.MerkleV
 	return tb.essence.ClosestMerkleValue(key)
 }
 
-func (tb *TrieBackend[H, Hasher]) ChildClosestMerkleValue(childInfo storage.ChildInfo, key []byte) (triedb.MerkleValue[H], error) {
+func (tb *TrieBackend[H, Hasher]) ChildClosestMerkleValue(
+	childInfo storage.ChildInfo, key []byte,
+) (triedb.MerkleValue[H], error) {
 	return tb.essence.ChildClosestMerkleValue(childInfo, key)
 }
 
@@ -187,12 +189,16 @@ func (tb *TrieBackend[H, Hasher]) RawIter(args IterArgs) (StorageIterator[H, Has
 	return tb.essence.RawIter(args)
 }
 
-func (tb *TrieBackend[H, Hasher]) StorageRoot(delta []Delta, stateVersion storage.StateVersion) (H, BackendTransaction[H, Hasher]) {
+func (tb *TrieBackend[H, Hasher]) StorageRoot(
+	delta []Delta, stateVersion storage.StateVersion,
+) (H, BackendTransaction[H, Hasher]) {
 	h, pmdb := tb.essence.StorageRoot(delta, stateVersion)
 	return h, BackendTransaction[H, Hasher]{pmdb}
 }
 
-func (tb *TrieBackend[H, Hasher]) ChildStorageRoot(childInfo storage.ChildInfo, delta []Delta, stateVersion storage.StateVersion) (H, bool, BackendTransaction[H, Hasher]) {
+func (tb *TrieBackend[H, Hasher]) ChildStorageRoot(
+	childInfo storage.ChildInfo, delta []Delta, stateVersion storage.StateVersion,
+) (H, bool, BackendTransaction[H, Hasher]) {
 	h, b, pmdb := tb.essence.ChildStorageRoot(childInfo, delta, stateVersion)
 	return h, b, BackendTransaction[H, Hasher]{pmdb}
 }
