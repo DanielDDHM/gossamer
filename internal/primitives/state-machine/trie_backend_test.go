@@ -496,7 +496,8 @@ func TestTrieBackend(t *testing.T) {
 
 	t.Run("proof_record_works_with_iter", func(t *testing.T) {
 		for _, stateVersion := range []storage.StateVersion{storage.StateVersionV0, storage.StateVersionV1} {
-			for _, sharedCache := range []*cache.SharedTrieCache[hash.H256]{cache.NewSharedTrieCache[hash.H256](1024 * 10), nil} {
+			for _, sharedCache := range []*cache.SharedTrieCache[hash.H256]{
+				cache.NewSharedTrieCache[hash.H256](1024 * 10), nil} {
 				// Run multiple times to have a different cache conditions.
 				for i := 0; i < 5; i++ {
 					if sharedCache != nil {
@@ -607,7 +608,8 @@ func TestTrieBackend(t *testing.T) {
 				require.Equal(t, []byte{i}, []byte(val))
 			}
 
-			for _, sharedCache := range []*cache.SharedTrieCache[hash.H256]{cache.NewSharedTrieCache[hash.H256](1024 * 10), nil} {
+			for _, sharedCache := range []*cache.SharedTrieCache[hash.H256]{
+				cache.NewSharedTrieCache[hash.H256](1024 * 10), nil} {
 				// Run multiple times to have a different cache conditions.
 				for i := 0; i < 5; i++ {
 					if sharedCache != nil {
@@ -899,7 +901,8 @@ func TestTrieBackend(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, childTrie2Val, []byte(val))
 
-			for _, sharedCache := range []*cache.SharedTrieCache[hash.H256]{cache.NewSharedTrieCache[hash.H256](1024 * 10), nil} {
+			for _, sharedCache := range []*cache.SharedTrieCache[hash.H256]{
+				cache.NewSharedTrieCache[hash.H256](1024 * 10), nil} {
 				// Run multiple times to have a different cache conditions.
 				for i := 0; i < 5; i++ {
 					if sharedCache != nil {
