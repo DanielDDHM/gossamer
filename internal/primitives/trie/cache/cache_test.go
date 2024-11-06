@@ -49,7 +49,7 @@ func Test_SharedTrieCache(t *testing.T) {
 
 		{
 			cache, unlock := localCache.TrieCache(root)
-			trie := triedb.NewTrieDB[hash.H256, runtime.BlakeTwo256](
+			trie := triedb.NewTrieDB(
 				root, db, triedb.WithCache[hash.H256, runtime.BlakeTwo256](cache))
 			trie.SetVersion(pkgtrie.V1)
 
@@ -135,10 +135,9 @@ func Test_SharedTrieCache(t *testing.T) {
 			cache.MergeInto(&localCache, newRoot)
 			unlock()
 			localCache.Commit()
-
 		}
 
-		// After the local cache is dropped, all changes should have been merged back to the shared
+		// After the local cache is committed, all changes should have been merged back to the shared
 		// cache.
 		cachedVal, ok := sharedCache.inner.valueCache.lru.Peek(ValueCacheKey[hash.H256]{
 			StorageRoot: newRoot,

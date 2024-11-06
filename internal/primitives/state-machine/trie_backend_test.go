@@ -361,8 +361,7 @@ func TestTrieBackend(t *testing.T) {
 				cache = &local
 			}
 			tb := testTrie(t, param.StateVersion, cache, param.Recorder)
-			tb1 := NewWrappedTrieBackend[hash.H256, runtime.BlakeTwo256](tb)
-			tb1.essence.recorder = recorder.NewRecorder[hash.H256]()
+			tb1 := NewWrappedTrieBackend(tb, nil, recorder.NewRecorder[hash.H256]())
 			proof := tb1.ExtractProof()
 			require.NotNil(t, proof)
 			require.True(t, proof.Empty())
@@ -377,8 +376,7 @@ func TestTrieBackend(t *testing.T) {
 				cache = &local
 			}
 			tb := testTrie(t, param.StateVersion, cache, param.Recorder)
-			tb1 := NewWrappedTrieBackend[hash.H256, runtime.BlakeTwo256](tb)
-			tb1.essence.recorder = recorder.NewRecorder[hash.H256]()
+			tb1 := NewWrappedTrieBackend(tb, nil, recorder.NewRecorder[hash.H256]())
 
 			sv, err := tb1.Storage([]byte("key"))
 			require.NoError(t, err)
@@ -403,8 +401,7 @@ func TestTrieBackend(t *testing.T) {
 				cache = &local
 			}
 			tb := testTrie(t, param.StateVersion, cache, param.Recorder)
-			provingBackend := NewWrappedTrieBackend[hash.H256, runtime.BlakeTwo256](tb)
-			provingBackend.essence.recorder = recorder.NewRecorder[hash.H256]()
+			provingBackend := NewWrappedTrieBackend(tb, nil, recorder.NewRecorder[hash.H256]())
 
 			sv, err := provingBackend.Storage([]byte("key"))
 			require.NoError(t, err)
@@ -472,8 +469,7 @@ func TestTrieBackend(t *testing.T) {
 						}
 					}
 
-					proving := NewWrappedTrieBackend(trie)
-					proving.essence.recorder = recorder.NewRecorder[hash.H256]()
+					proving := NewWrappedTrieBackend(trie, nil, recorder.NewRecorder[hash.H256]())
 					if cache != nil {
 						local := cache.LocalTrieCache()
 						proving.essence.trieNodeCache = &local
@@ -500,14 +496,14 @@ func TestTrieBackend(t *testing.T) {
 
 	t.Run("proof_record_works_with_iter", func(t *testing.T) {
 		for _, stateVersion := range []storage.StateVersion{storage.StateVersionV0, storage.StateVersionV1} {
-			for _, cache := range []*cache.SharedTrieCache[hash.H256]{cache.NewSharedTrieCache[hash.H256](1024 * 10), nil} {
+			for _, sharedCache := range []*cache.SharedTrieCache[hash.H256]{cache.NewSharedTrieCache[hash.H256](1024 * 10), nil} {
 				// Run multiple times to have a different cache conditions.
 				for i := 0; i < 5; i++ {
-					if cache != nil {
+					if sharedCache != nil {
 						if i == 2 {
-							cache.ResetNodeCache()
+							sharedCache.ResetNodeCache()
 						} else if i == 3 {
-							cache.ResetValueCache()
+							sharedCache.ResetValueCache()
 						}
 					}
 
@@ -536,12 +532,13 @@ func TestTrieBackend(t *testing.T) {
 						require.Equal(t, []byte{i}, []byte(val))
 					}
 
-					proving := NewWrappedTrieBackend(trie)
-					proving.essence.recorder = recorder.NewRecorder[hash.H256]()
-					if cache != nil {
-						local := cache.LocalTrieCache()
-						proving.essence.trieNodeCache = &local
+					var local TrieCacheProvider[hash.H256, *cache.TrieCache[hash.H256]]
+					if sharedCache != nil {
+						ltc := sharedCache.LocalTrieCache()
+						local = &ltc
 					}
+					proving := NewWrappedTrieBackend(trie, local, recorder.NewRecorder[hash.H256]())
+
 					for i := uint8(0); i < 63; i++ {
 						sk, err := proving.NextStorageKey([]byte{i})
 						require.NoError(t, err)
@@ -610,14 +607,14 @@ func TestTrieBackend(t *testing.T) {
 				require.Equal(t, []byte{i}, []byte(val))
 			}
 
-			for _, cache := range []*cache.SharedTrieCache[hash.H256]{cache.NewSharedTrieCache[hash.H256](1024 * 10), nil} {
+			for _, sharedCache := range []*cache.SharedTrieCache[hash.H256]{cache.NewSharedTrieCache[hash.H256](1024 * 10), nil} {
 				// Run multiple times to have a different cache conditions.
 				for i := 0; i < 5; i++ {
-					if cache != nil {
+					if sharedCache != nil {
 						if i == 2 {
-							cache.ResetNodeCache()
+							sharedCache.ResetNodeCache()
 						} else if i == 3 {
-							cache.ResetValueCache()
+							sharedCache.ResetValueCache()
 						}
 					}
 
@@ -630,12 +627,12 @@ func TestTrieBackend(t *testing.T) {
 						require.Equal(t, []byte{i}, []byte(val))
 					}
 
-					proving := NewWrappedTrieBackend(trie)
-					proving.essence.recorder = recorder.NewRecorder[hash.H256]()
-					if cache != nil {
-						local := cache.LocalTrieCache()
-						proving.essence.trieNodeCache = &local
+					var local TrieCacheProvider[hash.H256, *cache.TrieCache[hash.H256]]
+					if sharedCache != nil {
+						ltc := sharedCache.LocalTrieCache()
+						local = &ltc
 					}
+					proving := NewWrappedTrieBackend(trie, local, recorder.NewRecorder[hash.H256]())
 					val, err := proving.Storage([]byte{42})
 					require.NoError(t, err)
 					require.Equal(t, []byte{42}, []byte(val))
@@ -658,12 +655,7 @@ func TestTrieBackend(t *testing.T) {
 					require.NoError(t, err)
 					require.Nil(t, val)
 
-					proving = NewWrappedTrieBackend(trie)
-					proving.essence.recorder = recorder.NewRecorder[hash.H256]()
-					if cache != nil {
-						local := cache.LocalTrieCache()
-						proving.essence.trieNodeCache = &local
-					}
+					proving = NewWrappedTrieBackend(trie, nil, recorder.NewRecorder[hash.H256]())
 					val, err = proving.ChildStorage(childInfo1, []byte{64})
 					require.NoError(t, err)
 					require.Equal(t, []byte{64}, []byte(val))
@@ -741,8 +733,7 @@ func TestTrieBackend(t *testing.T) {
 			}
 			var nodes []hashNode
 			{
-				backend := NewWrappedTrieBackend(trie)
-				backend.essence.recorder = recorder.NewRecorder[hash.H256]()
+				backend := NewWrappedTrieBackend(trie, nil, recorder.NewRecorder[hash.H256]())
 				val, err := backend.ChildStorage(childInfo1, []byte{65})
 				require.NoError(t, err)
 				require.NotNil(t, val)
@@ -793,8 +784,7 @@ func TestTrieBackend(t *testing.T) {
 
 			{
 				// Record the access
-				proving := NewWrappedTrieBackend(trie)
-				proving.essence.recorder = recorder.NewRecorder[hash.H256]()
+				proving := NewWrappedTrieBackend(trie, nil, recorder.NewRecorder[hash.H256]())
 				if cache != nil {
 					local := cache.LocalTrieCache()
 					proving.essence.trieNodeCache = &local
@@ -851,9 +841,7 @@ func TestTrieBackend(t *testing.T) {
 			}
 
 			for n := 0; n < len(keys); n++ {
-				backend := NewWrappedTrieBackend(tb)
-				backend.essence.recorder = recorder.NewRecorder[hash.H256]()
-
+				backend := NewWrappedTrieBackend(tb, nil, recorder.NewRecorder[hash.H256]())
 				// Read n keys
 				for i := 0; i < n; i++ {
 					_, err := backend.Storage(keys[i])
@@ -911,14 +899,14 @@ func TestTrieBackend(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, childTrie2Val, []byte(val))
 
-			for _, cache := range []*cache.SharedTrieCache[hash.H256]{cache.NewSharedTrieCache[hash.H256](1024 * 10), nil} {
+			for _, sharedCache := range []*cache.SharedTrieCache[hash.H256]{cache.NewSharedTrieCache[hash.H256](1024 * 10), nil} {
 				// Run multiple times to have a different cache conditions.
 				for i := 0; i < 5; i++ {
-					if cache != nil {
+					if sharedCache != nil {
 						if i == 2 {
-							cache.ResetNodeCache()
+							sharedCache.ResetNodeCache()
 						} else if i == 3 {
-							cache.ResetValueCache()
+							sharedCache.ResetValueCache()
 						}
 					}
 
@@ -926,12 +914,13 @@ func TestTrieBackend(t *testing.T) {
 					trieRoot, _ := trie.StorageRoot(nil, stateVersion)
 					require.Equal(t, inMemoryRoot, trieRoot)
 
-					proving := NewWrappedTrieBackend(trie)
-					proving.essence.recorder = recorder.NewRecorder[hash.H256]()
-					if cache != nil {
-						local := cache.LocalTrieCache()
-						proving.essence.trieNodeCache = &local
+					var local TrieCacheProvider[hash.H256, *cache.TrieCache[hash.H256]]
+					if sharedCache != nil {
+						ltc := sharedCache.LocalTrieCache()
+						local = &ltc
 					}
+					proving := NewWrappedTrieBackend(trie, local, recorder.NewRecorder[hash.H256]())
+
 					val, err := proving.Storage(key)
 					require.NoError(t, err)
 					require.Equal(t, topTrieVal, []byte(val))

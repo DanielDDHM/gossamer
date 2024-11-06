@@ -74,12 +74,14 @@ func NewTrieBackend[H runtime.Hash, Hasher runtime.Hasher[H]](
 // The backend storage and the cache will be taken from other.
 func NewWrappedTrieBackend[H runtime.Hash, Hasher runtime.Hasher[H]](
 	other *TrieBackend[H, Hasher],
+	cache TrieCacheProvider[H, *cache.TrieCache[H]],
+	recorder *recorder.Recorder[H],
 ) *TrieBackend[H, Hasher] {
 	return NewTrieBackend[H, Hasher](
 		other.essence.BackendStorage(),
 		other.essence.root,
 		other.essence.trieNodeCache,
-		nil,
+		recorder,
 	)
 }
 

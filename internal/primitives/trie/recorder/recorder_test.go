@@ -290,7 +290,7 @@ func TestRecorder_TransactionAccessedKeys(t *testing.T) {
 		trieDB := triedb.NewTrieDB(root, db, triedb.WithRecorder[hash.H256, runtime.BlakeTwo256](trieRecorder))
 		trieDB.SetVersion(trie.V1)
 
-		hash, err := trieDB.GetHash(testData[0].Key)
+		hash, err := trieDB.GetHash(key)
 		require.NoError(t, err)
 		require.NotNil(t, hash)
 		require.Equal(t, runtime.BlakeTwo256{}.Hash(testData[0].Value), *hash)
