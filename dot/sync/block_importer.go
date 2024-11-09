@@ -115,7 +115,7 @@ func (b *blockImporter) processBlockData(blockData types.BlockData, origin Block
 			round, setID, err = b.finalityGadget.VerifyBlockJustification(
 				blockData.Header.Hash(), blockData.Header.Number, *blockData.Justification)
 			if err != nil {
-				return fmt.Errorf("verifying justification for block %s: %w", blockData.Header.Hash().String(), err)
+				return fmt.Errorf("verifying justification for block %s justification %v: %w", blockData.Header.Hash().String(), *&blockData.Justification, err)
 			}
 		}
 
