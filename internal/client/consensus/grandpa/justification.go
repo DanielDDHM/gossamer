@@ -160,10 +160,12 @@ func (j *GrandpaJustification[Hash, N]) verifyWithVoterSet(
 		ancestryChain,
 	)
 	if err != nil {
+		fmt.Printf("setId: %d voters %v \n", setID, voters)
 		return fmt.Errorf("%w: invalid commit in grandpa justification: %s", errBadJustification, err)
 	}
 
 	if !commitValidationResult.Valid() {
+		fmt.Printf("setId: %d voters %v \n", setID, voters)
 		return fmt.Errorf("%w: invalid commit in grandpa justification", errBadJustification)
 	}
 
