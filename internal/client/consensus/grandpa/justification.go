@@ -141,7 +141,7 @@ func (j *GrandpaJustification[Hash, N]) verifyWithVoterSet(
 	setID uint64,
 	voters grandpa.VoterSet[string],
 ) error {
-	ancestryChain := newAncestryChain[Hash, N](j.Justification.VoteAncestries)
+	ancestryChain := newAncestryChain(j.Justification.VoteAncestries)
 	signedPrecommits := make([]grandpa.SignedPrecommit[Hash, N, string, string], 0)
 	for _, pc := range j.Justification.Commit.Precommits {
 		signedPrecommits = append(signedPrecommits, grandpa.SignedPrecommit[Hash, N, string, string]{
@@ -150,7 +150,7 @@ func (j *GrandpaJustification[Hash, N]) verifyWithVoterSet(
 			ID:        string(pc.ID.Bytes()),
 		})
 	}
-	commitValidationResult, err := grandpa.ValidateCommit[Hash, N, string, string](
+	commitValidationResult, err := grandpa.ValidateCommit(
 		grandpa.Commit[Hash, N, string, string]{
 			TargetHash:   j.Justification.Commit.TargetHash,
 			TargetNumber: j.Justification.Commit.TargetNumber,
@@ -160,7 +160,7 @@ func (j *GrandpaJustification[Hash, N]) verifyWithVoterSet(
 		ancestryChain,
 	)
 	if err != nil {
-		return fmt.Errorf("%w: invalid commit in grandpa justification", errBadJustification)
+		return fmt.Errorf("%w: invalid commit in grandpa justification: %s", errBadJustification, err)
 	}
 
 	if !commitValidationResult.Valid() {
