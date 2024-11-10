@@ -9,12 +9,15 @@ import (
 	"io"
 	"reflect"
 
+	"github.com/ChainSafe/gossamer/internal/log"
 	primitives "github.com/ChainSafe/gossamer/internal/primitives/consensus/grandpa"
 	"github.com/ChainSafe/gossamer/internal/primitives/runtime"
 	"github.com/ChainSafe/gossamer/internal/primitives/runtime/generic"
 	grandpa "github.com/ChainSafe/gossamer/pkg/finality-grandpa"
 	"github.com/ChainSafe/gossamer/pkg/scale"
 )
+
+var logger = log.NewFromGlobal(log.AddContext("pkg", "grandpa"))
 
 var (
 	errInvalidAuthoritiesSet    = errors.New("current state of blockchain has invalid authorities set")
@@ -160,12 +163,14 @@ func (j *GrandpaJustification[Hash, N]) verifyWithVoterSet(
 		ancestryChain,
 	)
 	if err != nil {
-		fmt.Printf("setId: %d voters %v \n", setID, voters)
 		return fmt.Errorf("%w: invalid commit in grandpa justification: %s", errBadJustification, err)
 	}
 
 	if !commitValidationResult.Valid() {
-		fmt.Printf("setId: %d voters %v \n", setID, voters)
+		for _, voter := range voters.Iter() {
+			pk := []byte(voter.ID)
+			logger.Infof("Voter pk: %v, info: %v", pk, voter.VoterInfo)
+		}
 		return fmt.Errorf("%w: invalid commit in grandpa justification", errBadJustification)
 	}
 
