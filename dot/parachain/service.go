@@ -10,14 +10,14 @@ import (
 	"github.com/ChainSafe/gossamer/dot/network"
 	availability_store "github.com/ChainSafe/gossamer/dot/parachain/availability-store"
 	"github.com/ChainSafe/gossamer/dot/parachain/backing"
+	candidatevalidation "github.com/ChainSafe/gossamer/dot/parachain/candidate-validation"
 	collatorprotocol "github.com/ChainSafe/gossamer/dot/parachain/collator-protocol"
 	collatorprotocolmessages "github.com/ChainSafe/gossamer/dot/parachain/collator-protocol/messages"
 	networkbridge "github.com/ChainSafe/gossamer/dot/parachain/network-bridge"
-	validationprotocol "github.com/ChainSafe/gossamer/dot/parachain/validation-protocol"
-
-	candidatevalidation "github.com/ChainSafe/gossamer/dot/parachain/candidate-validation"
 	"github.com/ChainSafe/gossamer/dot/parachain/overseer"
+	prospective_parachains "github.com/ChainSafe/gossamer/dot/parachain/prospective-parachains"
 	parachaintypes "github.com/ChainSafe/gossamer/dot/parachain/types"
+	validationprotocol "github.com/ChainSafe/gossamer/dot/parachain/validation-protocol"
 	"github.com/ChainSafe/gossamer/dot/peerset"
 	"github.com/ChainSafe/gossamer/dot/state"
 	"github.com/ChainSafe/gossamer/internal/log"
@@ -84,6 +84,10 @@ func NewService(net Network, forkID string, st *state.Service, ks keystore.Keyst
 	candidateValidationSubsystem := candidatevalidation.NewCandidateValidation(overseer.SubsystemsToOverseer, st.Block)
 
 	overseer.RegisterSubsystem(candidateValidationSubsystem)
+
+	// register prospective parachains subsystem
+	prospectiveParachainsSubsystem := prospective_parachains.NewProspectiveParachains(overseer.SubsystemsToOverseer)
+	overseer.RegisterSubsystem(prospectiveParachainsSubsystem)
 
 	parachainService := &Service{
 		Network:  net,
