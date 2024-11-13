@@ -167,10 +167,6 @@ func (j *GrandpaJustification[Hash, N]) verifyWithVoterSet(
 	}
 
 	if !commitValidationResult.Valid() {
-		for _, voter := range voters.Iter() {
-			pk := []byte(voter.ID)
-			logger.Infof("Voter pk: %v, info: %v", pk, voter.VoterInfo)
-		}
 		return fmt.Errorf("%w: invalid commit in grandpa justification", errBadJustification)
 	}
 

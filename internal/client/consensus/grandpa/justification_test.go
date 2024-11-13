@@ -529,11 +529,11 @@ func TestFailingCommit(t *testing.T) {
 	encodedJustificationBytes, err := hex.DecodeString(encodedJustificationHex)
 	require.NoError(t, err)
 
-	blockHash := "16b498d8da125a4bddf9b0063111409935c033023c0d2807e228450c614836bd"
+	blockHash := "a6836b1530280181eabce3ded01e62283c7d6a64c6edbc9c789a28b10dc14be4"
 	blockHashBytes, err := hex.DecodeString(blockHash)
 	require.NoError(t, err)
 
-	finalizedNumber := 2318338
+	finalizedNumber := 2318339
 	finalizedHash := common.NewHash(blockHashBytes)
 
 	target := HashNumber[hash.H256, uint32]{
