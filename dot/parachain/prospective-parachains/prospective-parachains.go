@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	fragmentchain "github.com/ChainSafe/gossamer/dot/parachain/prospective-parachains/fragment-chain"
 	parachaintypes "github.com/ChainSafe/gossamer/dot/parachain/types"
 	"github.com/ChainSafe/gossamer/internal/log"
 	"github.com/ChainSafe/gossamer/lib/common"
@@ -22,19 +23,7 @@ type View struct {
 }
 
 type RelayParentData struct {
-	FragmentChains map[parachaintypes.ParaID]*FragmentChain
-}
-
-type FragmentChain struct {
-	Scope func() *Scope
-}
-
-type Scope struct {
-	EarliestRelayParent func() *RelayParent
-}
-
-type RelayParent struct {
-	Number parachaintypes.BlockNumber
+	FragmentChains map[parachaintypes.ParaID]*fragmentchain.FragmentChain
 }
 
 // Name returns the name of the subsystem
@@ -85,7 +74,7 @@ func (pp *ProspectiveParachains) processMessage(msg any) {
 		panic("not implemented yet: see issue #4311")
 	case GetMinimumRelayParents:
 		// Directly use the msg since it's already of type GetMinimumRelayParents
-		pp.AnswerMinimumRelayParentsRequest(pp.View, msg.RelayChainBlockHash, msg.Sender)
+		pp.AnswerMinimumRelayParentsRequest(msg.RelayChainBlockHash, msg.Sender)
 	case GetProspectiveValidationData:
 		panic("not implemented yet: see issue #4313")
 	default:
@@ -106,7 +95,6 @@ func (*ProspectiveParachains) ProcessBlockFinalizedSignal(parachaintypes.BlockFi
 }
 
 func (pp *ProspectiveParachains) AnswerMinimumRelayParentsRequest(
-	view *View,
 	relayChainBlockHash common.Hash,
 	sender chan []ParaIDBlockNumber,
 ) {
@@ -114,14 +102,14 @@ func (pp *ProspectiveParachains) AnswerMinimumRelayParentsRequest(
 	var result []ParaIDBlockNumber
 
 	// Check if the relayChainBlockHash exists in active_leaves
-	if exists := view.ActiveLeaves[relayChainBlockHash]; exists {
+	if exists := pp.View.ActiveLeaves[relayChainBlockHash]; exists {
 		// Retrieve data associated with the relayChainBlockHash
-		if leafData, found := view.PerRelayParent[relayChainBlockHash]; found {
+		if leafData, found := pp.View.PerRelayParent[relayChainBlockHash]; found {
 			// Iterate over fragment_chains and collect the data
 			for paraID, fragmentChain := range leafData.FragmentChains {
 				result = append(result, ParaIDBlockNumber{
 					ParaId:      paraID,
-					BlockNumber: fragmentChain.Scope().EarliestRelayParent().Number,
+					BlockNumber: parachaintypes.BlockNumber(fragmentChain.Scope().EarliestRelayParent().Number),
 				})
 			}
 		}
