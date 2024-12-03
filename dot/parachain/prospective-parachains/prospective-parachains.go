@@ -116,11 +116,5 @@ func (pp *ProspectiveParachains) AnswerMinimumRelayParentsRequest(
 	}
 
 	// Send the result through the sender channel
-	select {
-	case sender <- result:
-		// Successfully sent
-	default:
-		// If the receiver is not ready
-		logger.Warn("Sender channel not ready to accept relay parents data")
-	}
+	sender <- result
 }
