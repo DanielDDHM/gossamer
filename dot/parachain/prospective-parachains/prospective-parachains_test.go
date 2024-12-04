@@ -33,7 +33,7 @@ func dummyCandidateReceiptBadSig(
 	if commitments != nil {
 		commitmentsHash = *commitments
 	} else {
-		commitmentsHash = common.EmptyHash // TODO:
+		commitmentsHash = common.EmptyHash
 	}
 
 	descriptor := parachaintypes.CandidateDescriptor{
@@ -54,7 +54,7 @@ func dummyCandidateReceiptBadSig(
 	}
 }
 
-func MakeCandidate(
+func makeCandidate(
 	relayParent common.Hash,
 	relayParentNumber uint32,
 	paraID parachaintypes.ParaID,
@@ -132,12 +132,12 @@ func TestAnswerMinimumRelayParentsRequest(t *testing.T) {
 	assert.NoError(t, err)
 
 	mockView := &View{
-		ActiveLeaves: map[common.Hash]bool{
+		activeLeaves: map[common.Hash]bool{
 			common.BytesToHash([]byte("active_hash")): true,
 		},
 		PerRelayParent: map[common.Hash]*RelayParentData{
 			common.BytesToHash([]byte("active_hash")): {
-				FragmentChains: map[parachaintypes.ParaID]*fragmentchain.FragmentChain{
+				fragmentChains: map[parachaintypes.ParaID]*fragmentchain.FragmentChain{
 					parachaintypes.ParaID(1): fragmentchain.NewFragmentChain(mockScope, fragmentchain.NewCandidateStorage()),
 					parachaintypes.ParaID(2): fragmentchain.NewFragmentChain(mockScope2, fragmentchain.NewCandidateStorage()),
 				},
@@ -154,7 +154,7 @@ func TestAnswerMinimumRelayParentsRequest(t *testing.T) {
 	sender := make(chan []ParaIDBlockNumber, 1)
 
 	// Execute the method under test
-	pp.AnswerMinimumRelayParentsRequest(common.BytesToHash([]byte("active_hash")), sender)
+	pp.handleMinimumRelayParentsRequest(common.BytesToHash([]byte("active_hash")), sender)
 
 	expected := []ParaIDBlockNumber{
 		{
@@ -176,7 +176,7 @@ func TestAnswerMinimumRelayParentsRequest(t *testing.T) {
 // correctly handles the case where there are no active leaves.
 func TestAnswerMinimumRelayParentsRequest_NoActiveLeaves(t *testing.T) {
 	mockView := &View{
-		ActiveLeaves:   map[common.Hash]bool{},
+		activeLeaves:   map[common.Hash]bool{},
 		PerRelayParent: map[common.Hash]*RelayParentData{},
 	}
 
@@ -189,15 +189,13 @@ func TestAnswerMinimumRelayParentsRequest_NoActiveLeaves(t *testing.T) {
 	sender := make(chan []ParaIDBlockNumber, 1)
 
 	// Execute the method under test
-	pp.AnswerMinimumRelayParentsRequest(common.BytesToHash([]byte("active_hash")), sender)
+	pp.handleMinimumRelayParentsRequest(common.BytesToHash([]byte("active_hash")), sender)
 	// Validate the results
 	result := <-sender
 	assert.Empty(t, result, "Expected result to be empty when no active leaves are present")
 }
 
-func TestHandleAnswerMinimumRelayParentsRequest(
-	t *testing.T,
-) {
+func TestProspectiveParachains_HandleMinimumRelayParents(t *testing.T) {
 	candidateRelayParent := common.Hash{0x01}
 	paraId := parachaintypes.ParaID(1)
 	parentHead := parachaintypes.HeadData{
@@ -209,7 +207,7 @@ func TestHandleAnswerMinimumRelayParentsRequest(
 	validationCodeHash := parachaintypes.ValidationCodeHash{0x01}
 	candidateRelayParentNumber := uint32(0)
 
-	candidate := MakeCandidate(
+	candidate := makeCandidate(
 		candidateRelayParent,
 		candidateRelayParentNumber,
 		paraId,
@@ -240,29 +238,39 @@ func TestHandleAnswerMinimumRelayParentsRequest(
 	assert.NoError(t, err)
 
 	prospectiveParachains.View.PerRelayParent[candidateRelayParent] = &RelayParentData{
-		FragmentChains: map[parachaintypes.ParaID]*fragmentchain.FragmentChain{
+		fragmentChains: map[parachaintypes.ParaID]*fragmentchain.FragmentChain{
 			paraId: fragmentchain.NewFragmentChain(scope, fragmentchain.NewCandidateStorage()),
 		},
 	}
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	var wg sync.WaitGroup
 
+	// Run the subsystem
 	wg.Add(1)
-	go func(wg *sync.WaitGroup) {
+	go func() {
 		defer wg.Done()
 		prospectiveParachains.Run(context.Background(), overseerToSubsystem)
-	}(&wg)
+	}()
 
 	sender := make(chan []ParaIDBlockNumber, 1)
-
-	prospectiveParachains.AnswerMinimumRelayParentsRequest(candidateRelayParent, sender)
+	go func() {
+		overseerToSubsystem <- GetMinimumRelayParents{
+			RelayChainBlockHash: candidateRelayParent,
+			Sender:              sender,
+		}
+	}()
 
 	result := <-sender
-
 	assert.Len(t, result, 1, "Expected one ParaIDBlockNumber in the result")
 	assert.Equal(t, paraId, result[0].ParaId, "ParaId mismatch in the result")
 	assert.Equal(t, uint32(7), result[0].BlockNumber, "BlockNumber mismatch in the result")
 
 	_, err = candidate.Hash()
 	assert.NoError(t, err)
+
+	// Ensure subsystem stops gracefully
+	cancel()
+	wg.Wait()
 }

@@ -18,12 +18,12 @@ type ProspectiveParachains struct {
 }
 
 type View struct {
-	ActiveLeaves   map[common.Hash]bool
+	activeLeaves   map[common.Hash]bool
 	PerRelayParent map[common.Hash]*RelayParentData
 }
 
 type RelayParentData struct {
-	FragmentChains map[parachaintypes.ParaID]*fragmentchain.FragmentChain
+	fragmentChains map[parachaintypes.ParaID]*fragmentchain.FragmentChain
 }
 
 // Name returns the name of the subsystem
@@ -74,7 +74,7 @@ func (pp *ProspectiveParachains) processMessage(msg any) {
 		panic("not implemented yet: see issue #4311")
 	case GetMinimumRelayParents:
 		// Directly use the msg since it's already of type GetMinimumRelayParents
-		pp.AnswerMinimumRelayParentsRequest(msg.RelayChainBlockHash, msg.Sender)
+		pp.handleMinimumRelayParentsRequest(msg.RelayChainBlockHash, msg.Sender)
 	case GetProspectiveValidationData:
 		panic("not implemented yet: see issue #4313")
 	default:
@@ -94,19 +94,18 @@ func (*ProspectiveParachains) ProcessBlockFinalizedSignal(parachaintypes.BlockFi
 	return nil
 }
 
-func (pp *ProspectiveParachains) AnswerMinimumRelayParentsRequest(
+func (pp *ProspectiveParachains) handleMinimumRelayParentsRequest(
 	relayChainBlockHash common.Hash,
 	sender chan []ParaIDBlockNumber,
 ) {
-	// Slice to store the results
 	var result []ParaIDBlockNumber
 
 	// Check if the relayChainBlockHash exists in active_leaves
-	if exists := pp.View.ActiveLeaves[relayChainBlockHash]; exists {
+	if exists := pp.View.activeLeaves[relayChainBlockHash]; exists {
 		// Retrieve data associated with the relayChainBlockHash
 		if leafData, found := pp.View.PerRelayParent[relayChainBlockHash]; found {
 			// Iterate over fragment_chains and collect the data
-			for paraID, fragmentChain := range leafData.FragmentChains {
+			for paraID, fragmentChain := range leafData.fragmentChains {
 				result = append(result, ParaIDBlockNumber{
 					ParaId:      paraID,
 					BlockNumber: parachaintypes.BlockNumber(fragmentChain.Scope().EarliestRelayParent().Number),
