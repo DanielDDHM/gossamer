@@ -1013,8 +1013,7 @@ func (f *FragmentChain) populateChain(storage *CandidateStorage) {
 		return
 	}
 
-	for len(f.bestChain.chain) > int(f.scope.maxDepth) {
-
+	for len(f.bestChain.chain) < int(f.scope.maxDepth) {
 		childConstraints, err := f.scope.baseConstraints.ApplyModifications(cumulativeModifications)
 		if err != nil {
 			// TODO: include logger
