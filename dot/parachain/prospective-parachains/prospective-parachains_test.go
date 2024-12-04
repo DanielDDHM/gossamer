@@ -96,9 +96,9 @@ func makeCandidate(
 	return result
 }
 
-// TestAnswerMinimumRelayParentsRequest ensures that AnswerMinimumRelayParentsRequest
+// TestHandleMinimumRelayParentsRequest ensures that handleMinimumRelayParentsRequest
 // processes the relay parent hash and correctly sends the output via the channel
-func TestAnswerMinimumRelayParentsRequest(t *testing.T) {
+func TestHandleMinimumRelayParentsRequest(t *testing.T) {
 	// Setup a mock View with active leaves and relay parent data
 
 	mockRelayParent := inclusionemulator.RelayChainBlockInfo{
@@ -172,9 +172,9 @@ func TestAnswerMinimumRelayParentsRequest(t *testing.T) {
 	assert.Equal(t, expected, result)
 }
 
-// TestAnswerMinimumRelayParentsRequest_NoActiveLeaves ensures that AnswerMinimumRelayParentsRequest
+// TestHandleMinimumRelayParentsRequest_NoActiveLeaves ensures that handleMinimumRelayParentsRequest
 // correctly handles the case where there are no active leaves.
-func TestAnswerMinimumRelayParentsRequest_NoActiveLeaves(t *testing.T) {
+func TestHandleMinimumRelayParentsRequest_NoActiveLeaves(t *testing.T) {
 	mockView := &View{
 		activeLeaves:   map[common.Hash]bool{},
 		PerRelayParent: map[common.Hash]*RelayParentData{},
