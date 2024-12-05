@@ -69,8 +69,7 @@ func (pp *ProspectiveParachains) processMessage(msg any) {
 	case CandidateBacked:
 		panic("not implemented yet: see issue #4309")
 	case GetBackableCandidates:
-		ctx := context.Background()
-		go pp.GetBackableCandidates(ctx, msg)
+		go pp.getBackableCandidates(msg)
 	case GetHypotheticalMembership:
 		panic("not implemented yet: see issue #4311")
 	case GetMinimumRelayParents:
@@ -94,8 +93,7 @@ func (*ProspectiveParachains) ProcessBlockFinalizedSignal(parachaintypes.BlockFi
 	return nil
 }
 
-func (pp *ProspectiveParachains) GetBackableCandidates(
-	ctx context.Context,
+func (pp *ProspectiveParachains) getBackableCandidates(
 	msg GetBackableCandidates,
 ) {
 	// Extract details from the message
