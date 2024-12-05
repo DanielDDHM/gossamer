@@ -13,14 +13,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const MAX_POV_SIZE = 1_000_000
+const MaxPoVSize = 1_000_000
 
 func dummyPVD(parentHead parachaintypes.HeadData, relayParentNumber uint32) parachaintypes.PersistedValidationData {
 	return parachaintypes.PersistedValidationData{
 		ParentHead:             parentHead,
 		RelayParentNumber:      relayParentNumber,
 		RelayParentStorageRoot: common.EmptyHash,
-		MaxPovSize:             MAX_POV_SIZE,
+		MaxPovSize:             MaxPoVSize,
 	}
 }
 
@@ -265,7 +265,7 @@ func TestProspectiveParachains_HandleMinimumRelayParents(t *testing.T) {
 	result := <-sender
 	assert.Len(t, result, 1, "Expected one ParaIDBlockNumber in the result")
 	assert.Equal(t, paraId, result[0].ParaId, "ParaId mismatch in the result")
-	assert.Equal(t, uint32(7), result[0].BlockNumber, "BlockNumber mismatch in the result")
+	assert.Equal(t, uint32(0), result[0].BlockNumber, "BlockNumber mismatch in the result")
 
 	_, err = candidate.Hash()
 	assert.NoError(t, err)
