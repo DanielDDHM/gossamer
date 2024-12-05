@@ -96,9 +96,9 @@ func makeCandidate(
 	return result
 }
 
-// TestHandleMinimumRelayParentsRequest ensures that handleMinimumRelayParentsRequest
+// TestGetMinimumRelayParents ensures that getMinimumRelayParents
 // processes the relay parent hash and correctly sends the output via the channel
-func TestHandleMinimumRelayParentsRequest(t *testing.T) {
+func TestGetMinimumRelayParents(t *testing.T) {
 	// Setup a mock View with active leaves and relay parent data
 
 	mockRelayParent := inclusionemulator.RelayChainBlockInfo{
@@ -154,7 +154,7 @@ func TestHandleMinimumRelayParentsRequest(t *testing.T) {
 	sender := make(chan []ParaIDBlockNumber, 1)
 
 	// Execute the method under test
-	pp.handleMinimumRelayParentsRequest(common.BytesToHash([]byte("active_hash")), sender)
+	pp.getMinimumRelayParents(common.BytesToHash([]byte("active_hash")), sender)
 
 	expected := []ParaIDBlockNumber{
 		{
@@ -172,9 +172,9 @@ func TestHandleMinimumRelayParentsRequest(t *testing.T) {
 	assert.Equal(t, expected, result)
 }
 
-// TestHandleMinimumRelayParentsRequest_NoActiveLeaves ensures that handleMinimumRelayParentsRequest
+// TestGetMinimumRelayParents_NoActiveLeaves ensures that getMinimumRelayParents
 // correctly handles the case where there are no active leaves.
-func TestHandleMinimumRelayParentsRequest_NoActiveLeaves(t *testing.T) {
+func TestGetMinimumRelayParents_NoActiveLeaves(t *testing.T) {
 	mockView := &View{
 		activeLeaves:   map[common.Hash]bool{},
 		PerRelayParent: map[common.Hash]*RelayParentData{},
@@ -189,7 +189,7 @@ func TestHandleMinimumRelayParentsRequest_NoActiveLeaves(t *testing.T) {
 	sender := make(chan []ParaIDBlockNumber, 1)
 
 	// Execute the method under test
-	pp.handleMinimumRelayParentsRequest(common.BytesToHash([]byte("active_hash")), sender)
+	pp.getMinimumRelayParents(common.BytesToHash([]byte("active_hash")), sender)
 	// Validate the results
 	result := <-sender
 	assert.Empty(t, result, "Expected result to be empty when no active leaves are present")
@@ -242,8 +242,8 @@ func TestProspectiveParachains_HandleMinimumRelayParents(t *testing.T) {
 			paraId: fragmentchain.NewFragmentChain(scope, fragmentchain.NewCandidateStorage()),
 		},
 	}
-	_, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
 	var wg sync.WaitGroup
 
@@ -251,7 +251,7 @@ func TestProspectiveParachains_HandleMinimumRelayParents(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		prospectiveParachains.Run(context.Background(), overseerToSubsystem)
+		prospectiveParachains.Run(ctx, overseerToSubsystem)
 	}()
 
 	sender := make(chan []ParaIDBlockNumber, 1)

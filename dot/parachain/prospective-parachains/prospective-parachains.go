@@ -74,7 +74,7 @@ func (pp *ProspectiveParachains) processMessage(msg any) {
 		panic("not implemented yet: see issue #4311")
 	case GetMinimumRelayParents:
 		// Directly use the msg since it's already of type GetMinimumRelayParents
-		pp.handleMinimumRelayParentsRequest(msg.RelayChainBlockHash, msg.Sender)
+		pp.getMinimumRelayParents(msg.RelayChainBlockHash, msg.Sender)
 	case GetProspectiveValidationData:
 		panic("not implemented yet: see issue #4313")
 	default:
@@ -94,7 +94,7 @@ func (*ProspectiveParachains) ProcessBlockFinalizedSignal(parachaintypes.BlockFi
 	return nil
 }
 
-func (pp *ProspectiveParachains) handleMinimumRelayParentsRequest(
+func (pp *ProspectiveParachains) getMinimumRelayParents(
 	relayChainBlockHash common.Hash,
 	sender chan []ParaIDBlockNumber,
 ) {
