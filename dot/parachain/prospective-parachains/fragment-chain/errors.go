@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	ErrCandidateAlradyKnown            = errors.New("candidate already known")
+	ErrCandidateAlreadyKnown           = errors.New("candidate already known")
 	ErrZeroLengthCycle                 = errors.New("candidate's parent head is equal to its output head. Would introduce a cycle")
 	ErrCycle                           = errors.New("candidate would introduce a cycle")
 	ErrMultiplePaths                   = errors.New("candidate would introduce two paths to the same output state")
@@ -17,7 +17,6 @@ var (
 	ErrParentCandidateNotFound         = errors.New("could not find parent of the candidate")
 	ErrRelayParentMovedBackwards       = errors.New("relay parent would move backwards from the latest candidate in the chain")
 	ErrPersistedValidationDataMismatch = errors.New("candidate does not match the persisted validation data provided alongside it")
-	ErrCandidateEntryZeroLengthCycle   = errors.New("candidate's parent head is equal to its output head. Would introduce a cycle")
 )
 
 type ErrRelayParentPrecedesCandidatePendingAvailability struct {

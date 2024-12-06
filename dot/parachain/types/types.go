@@ -747,18 +747,53 @@ type Subsystem interface {
 	Stop()
 }
 
+type Present struct{}
+
 // UpgradeRestriction a possible restriction that prevents a parachain
 // from performing an upgrade
 // TODO: should be scale encoded/decoded
-type UpgradeRestriction interface {
-	isUpgradeRestriction()
+type UpgradeRestriction struct {
+	inner any
 }
 
-var _ UpgradeRestriction = (*Present)(nil)
+type UpgradeRestrictionValues interface {
+	Present
+}
 
-type Present struct{}
+func setMyVaryingDataType[Value UpgradeRestrictionValues](mvdt *UpgradeRestriction, value Value) {
+	mvdt.inner = value
+}
 
-func (*Present) isUpgradeRestriction() {}
+func (mvdt *UpgradeRestriction) SetValue(value any) (err error) {
+	switch value := value.(type) {
+	case Present:
+		setMyVaryingDataType(mvdt, value)
+		return
+	default:
+		return fmt.Errorf("unsupported type")
+	}
+}
+
+func (mvdt UpgradeRestriction) IndexValue() (index uint, value any, err error) {
+	switch mvdt.inner.(type) {
+	case Present:
+		return 0, mvdt.inner, nil
+	}
+	return 0, nil, scale.ErrUnsupportedVaryingDataTypeValue
+}
+
+func (mvdt UpgradeRestriction) Value() (value any, err error) {
+	_, value, err = mvdt.IndexValue()
+	return
+}
+
+func (mvdt UpgradeRestriction) ValueAt(index uint) (value any, err error) {
+	switch index {
+	case 0:
+		return Present{}, nil
+	}
+	return nil, scale.ErrUnknownVaryingDataTypeValue
+}
 
 // CandidateHashAndRelayParent is a pair of candidate hash and relay parent hash
 type CandidateHashAndRelayParent struct {
