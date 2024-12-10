@@ -36,75 +36,126 @@ type Ancestors struct {
 	numberOfAncestors uint32
 }
 
-// UnifiedReputationChange represents a reputation change for a peer.
-type UnifiedReputationChange struct {
-	Change int32
-	Reason string
-}
-
 // NetworkBridgeTxMessage represents the message sent to the network subsystem.
 type NetworkBridgeTxMessage struct {
 	ReportPeerMessageBatch map[peer.ID]int32
 }
 
-// ReputationAggregator aggregates reputation changes for peers.
+// UnifiedReputationChangeType represents the type of reputation change.
+type UnifiedReputationChangeType string
+
+const (
+	CostMinor         UnifiedReputationChangeType = "CostMinor"
+	CostMajor         UnifiedReputationChangeType = "CostMajor"
+	CostMinorRepeated UnifiedReputationChangeType = "CostMinorRepeated"
+	CostMajorRepeated UnifiedReputationChangeType = "CostMajorRepeated"
+	Malicious         UnifiedReputationChangeType = "Malicious"
+	BenefitMinorFirst UnifiedReputationChangeType = "BenefitMinorFirst"
+	BenefitMinor      UnifiedReputationChangeType = "BenefitMinor"
+	BenefitMajorFirst UnifiedReputationChangeType = "BenefitMajorFirst"
+	BenefitMajor      UnifiedReputationChangeType = "BenefitMajor"
+)
+
+// UnifiedReputationChange represents a reputation change for a peer.
+type UnifiedReputationChange struct {
+	Type   UnifiedReputationChangeType
+	Reason string
+}
+
+// CostOrBenefit returns the cost or benefit of the reputation change.
+func (u UnifiedReputationChange) CostOrBenefit() int32 {
+	switch u.Type {
+	case CostMinor:
+		return -100_000
+	case CostMajor:
+		return -300_000
+	case CostMinorRepeated:
+		return -200_000
+	case CostMajorRepeated:
+		return -600_000
+	case Malicious:
+		return -1 << 31 // Equivalent to i32::MIN
+	case BenefitMajorFirst:
+		return 300_000
+	case BenefitMajor:
+		return 200_000
+	case BenefitMinorFirst:
+		return 15_000
+	case BenefitMinor:
+		return 10_000
+	default:
+		return 0
+	}
+}
+
+// ReputationAggregator collects and sends reputation changes in batches.
 type ReputationAggregator struct {
 	sendImmediatelyIf func(rep UnifiedReputationChange) bool
 	byPeer            map[peer.ID]int32
-	mu                sync.Mutex // Mutex for thread safety
+	mu                sync.Mutex
 }
 
 // NewReputationAggregator creates a new ReputationAggregator.
 func NewReputationAggregator(sendImmediatelyIf func(rep UnifiedReputationChange) bool) *ReputationAggregator {
 	return &ReputationAggregator{
-		byPeer:            make(map[peer.ID]int32),
 		sendImmediatelyIf: sendImmediatelyIf,
+		byPeer:            make(map[peer.ID]int32),
 	}
 }
 
-// Send sends the aggregated reputation changes in a batch and clears the state.
+// Send sends the accumulated reputation changes in a batch and clears the state.
 func (r *ReputationAggregator) Send(overseerCh chan<- NetworkBridgeTxMessage) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// If there's nothing to send, exit
 	if len(r.byPeer) == 0 {
 		return
 	}
 
-	// Create the batch message
 	message := NetworkBridgeTxMessage{
 		ReportPeerMessageBatch: r.byPeer,
 	}
-
-	// Send the message
 	overseerCh <- message
 
-	// Clear the map after sending
 	r.byPeer = make(map[peer.ID]int32)
 }
 
-// Modify adds a reputation change to the internal state or sends it immediately if needed.
+// Modify processes a reputation change, sending it immediately if necessary or accumulating it.
 func (r *ReputationAggregator) Modify(overseerCh chan<- NetworkBridgeTxMessage, peerID peer.ID, rep UnifiedReputationChange) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Check if the change should be sent immediately
 	if r.sendImmediatelyIf(rep) {
-		// Send immediately without adding to the aggregator
-		overseerCh <- NetworkBridgeTxMessage{
-			ReportPeerMessageBatch: map[peer.ID]int32{
-				peerID: rep.Change,
-			},
-		}
+		r.singleSend(overseerCh, peerID, rep)
 		return
 	}
 
-	// Otherwise, accumulate the reputation change
-	if r.byPeer == nil {
-		r.byPeer = make(map[peer.ID]int32)
+	r.add(peerID, rep)
+	fmt.Printf("Accumulated reputation change for peer %s: %+v\n", peerID, rep)
+}
+
+// singleSend sends a single reputation change directly.
+func (r *ReputationAggregator) singleSend(overseerCh chan<- NetworkBridgeTxMessage, peerID peer.ID, rep UnifiedReputationChange) {
+	message := NetworkBridgeTxMessage{
+		ReportPeerMessageBatch: map[peer.ID]int32{
+			peerID: rep.CostOrBenefit(),
+		},
 	}
-	r.byPeer[peerID] += rep.Change
+	overseerCh <- message
+	fmt.Printf("Sent immediate reputation change for peer %s: %+v\n", peerID, rep)
+}
+
+// add accumulates a reputation change for a peer.
+func (r *ReputationAggregator) add(peerID peer.ID, rep UnifiedReputationChange) {
+	if _, exists := r.byPeer[peerID]; !exists {
+		r.byPeer[peerID] = 0
+	}
+	r.byPeer[peerID] += rep.CostOrBenefit()
+}
+
+// AddReputation updates a batch with a reputation change for a peer.
+func AddReputation(batch map[peer.ID]int32, peerID peer.ID, rep UnifiedReputationChange) {
+	batch[peerID] += rep.CostOrBenefit()
 }
 
 // SigningKeyAndIndex finds the first key we can sign with from the given set of validators,

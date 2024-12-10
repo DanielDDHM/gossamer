@@ -11,16 +11,16 @@ func TestReputationAggregator_SendImmediately(t *testing.T) {
 	// Mock channel
 	overseerCh := make(chan NetworkBridgeTxMessage, 1)
 
-	// Create a new aggregator with immediate send logic for changes < 0
+	// Create a new aggregator with immediate send logic for Malicious type
 	aggregator := NewReputationAggregator(func(rep UnifiedReputationChange) bool {
-		return rep.Change < 0
+		return rep.Type == Malicious
 	})
 
 	// Mock peer and reputation change
 	peerID := peer.ID("peer1")
 	repChange := UnifiedReputationChange{
-		Change: -10,
-		Reason: "Malicious behavior",
+		Type:   Malicious,
+		Reason: "Detected malicious behavior",
 	}
 
 	// Modify the aggregator
@@ -30,7 +30,7 @@ func TestReputationAggregator_SendImmediately(t *testing.T) {
 	select {
 	case msg := <-overseerCh:
 		assert.Len(t, msg.ReportPeerMessageBatch, 1)
-		assert.Equal(t, int32(-10), msg.ReportPeerMessageBatch[peerID])
+		assert.Equal(t, repChange.CostOrBenefit(), msg.ReportPeerMessageBatch[peerID])
 	default:
 		t.Error("Expected immediate message, but none was sent")
 	}
@@ -48,8 +48,8 @@ func TestReputationAggregator_BatchSend(t *testing.T) {
 	// Add multiple reputation changes
 	peerID1 := peer.ID("peer1")
 	peerID2 := peer.ID("peer2")
-	aggregator.Modify(overseerCh, peerID1, UnifiedReputationChange{Change: 5, Reason: "Good behavior"})
-	aggregator.Modify(overseerCh, peerID2, UnifiedReputationChange{Change: 10, Reason: "Great behavior"})
+	aggregator.Modify(overseerCh, peerID1, UnifiedReputationChange{Type: BenefitMinor, Reason: "Good behavior"})
+	aggregator.Modify(overseerCh, peerID2, UnifiedReputationChange{Type: BenefitMajor, Reason: "Excellent behavior"})
 
 	// Verify no messages were sent yet
 	select {
@@ -65,8 +65,8 @@ func TestReputationAggregator_BatchSend(t *testing.T) {
 	select {
 	case msg := <-overseerCh:
 		assert.Len(t, msg.ReportPeerMessageBatch, 2)
-		assert.Equal(t, int32(5), msg.ReportPeerMessageBatch[peerID1])
-		assert.Equal(t, int32(10), msg.ReportPeerMessageBatch[peerID2])
+		assert.Equal(t, int32(10_000), msg.ReportPeerMessageBatch[peerID1])  // BenefitMinor
+		assert.Equal(t, int32(200_000), msg.ReportPeerMessageBatch[peerID2]) // BenefitMajor
 	default:
 		t.Error("Expected batch message, but none was sent")
 	}
@@ -83,7 +83,7 @@ func TestReputationAggregator_ClearAfterSend(t *testing.T) {
 
 	// Add a reputation change
 	peerID := peer.ID("peer1")
-	aggregator.Modify(overseerCh, peerID, UnifiedReputationChange{Change: 10, Reason: "Good behavior"})
+	aggregator.Modify(overseerCh, peerID, UnifiedReputationChange{Type: BenefitMinor, Reason: "Positive contribution"})
 
 	// Call Send to flush changes
 	aggregator.Send(overseerCh)
@@ -111,8 +111,8 @@ func TestReputationAggregator_ConflictResolution(t *testing.T) {
 
 	// Add multiple reputation changes for the same peer
 	peerID := peer.ID("peer1")
-	aggregator.Modify(overseerCh, peerID, UnifiedReputationChange{Change: 10, Reason: "Good behavior"})
-	aggregator.Modify(overseerCh, peerID, UnifiedReputationChange{Change: -5, Reason: "Minor issue"})
+	aggregator.Modify(overseerCh, peerID, UnifiedReputationChange{Type: BenefitMajor, Reason: "Helpful behavior"})
+	aggregator.Modify(overseerCh, peerID, UnifiedReputationChange{Type: CostMinor, Reason: "Minor issue"})
 
 	// Call Send to flush changes
 	aggregator.Send(overseerCh)
@@ -121,7 +121,7 @@ func TestReputationAggregator_ConflictResolution(t *testing.T) {
 	select {
 	case msg := <-overseerCh:
 		assert.Len(t, msg.ReportPeerMessageBatch, 1)
-		assert.Equal(t, int32(5), msg.ReportPeerMessageBatch[peerID]) // 10 + (-5) = 5
+		assert.Equal(t, int32(100_000), msg.ReportPeerMessageBatch[peerID]) // 200_000 + (-100_000) = 100_000
 	default:
 		t.Error("Expected batch message, but none was sent")
 	}
