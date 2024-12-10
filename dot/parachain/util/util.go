@@ -6,6 +6,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ChainSafe/gossamer/dot/parachain/chainapi"
@@ -16,6 +17,7 @@ import (
 	"github.com/ChainSafe/gossamer/lib/keystore"
 	"github.com/ChainSafe/gossamer/lib/runtime"
 	wazero_runtime "github.com/ChainSafe/gossamer/lib/runtime/wazero"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type HashHeader struct {
@@ -32,6 +34,77 @@ type AncestorsResponse struct {
 type Ancestors struct {
 	Hash              common.Hash
 	numberOfAncestors uint32
+}
+
+// UnifiedReputationChange represents a reputation change for a peer.
+type UnifiedReputationChange struct {
+	Change int32
+	Reason string
+}
+
+// NetworkBridgeTxMessage represents the message sent to the network subsystem.
+type NetworkBridgeTxMessage struct {
+	ReportPeerMessageBatch map[peer.ID]int32
+}
+
+// ReputationAggregator aggregates reputation changes for peers.
+type ReputationAggregator struct {
+	sendImmediatelyIf func(rep UnifiedReputationChange) bool
+	byPeer            map[peer.ID]int32
+	mu                sync.Mutex // Mutex for thread safety
+}
+
+// NewReputationAggregator creates a new ReputationAggregator.
+func NewReputationAggregator(sendImmediatelyIf func(rep UnifiedReputationChange) bool) *ReputationAggregator {
+	return &ReputationAggregator{
+		byPeer:            make(map[peer.ID]int32),
+		sendImmediatelyIf: sendImmediatelyIf,
+	}
+}
+
+// Send sends the aggregated reputation changes in a batch and clears the state.
+func (r *ReputationAggregator) Send(overseerCh chan<- NetworkBridgeTxMessage) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// If there's nothing to send, exit
+	if len(r.byPeer) == 0 {
+		return
+	}
+
+	// Create the batch message
+	message := NetworkBridgeTxMessage{
+		ReportPeerMessageBatch: r.byPeer,
+	}
+
+	// Send the message
+	overseerCh <- message
+
+	// Clear the map after sending
+	r.byPeer = make(map[peer.ID]int32)
+}
+
+// Modify adds a reputation change to the internal state or sends it immediately if needed.
+func (r *ReputationAggregator) Modify(overseerCh chan<- NetworkBridgeTxMessage, peerID peer.ID, rep UnifiedReputationChange) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Check if the change should be sent immediately
+	if r.sendImmediatelyIf(rep) {
+		// Send immediately without adding to the aggregator
+		overseerCh <- NetworkBridgeTxMessage{
+			ReportPeerMessageBatch: map[peer.ID]int32{
+				peerID: rep.Change,
+			},
+		}
+		return
+	}
+
+	// Otherwise, accumulate the reputation change
+	if r.byPeer == nil {
+		r.byPeer = make(map[peer.ID]int32)
+	}
+	r.byPeer[peerID] += rep.Change
 }
 
 // SigningKeyAndIndex finds the first key we can sign with from the given set of validators,
