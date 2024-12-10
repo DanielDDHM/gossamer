@@ -6,6 +6,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/ChainSafe/gossamer/lib/common"
 	"github.com/ChainSafe/gossamer/lib/crypto/sr25519"
 	"github.com/ChainSafe/gossamer/lib/keystore"
+	"github.com/ChainSafe/gossamer/lib/primitives"
 	"github.com/ChainSafe/gossamer/lib/runtime"
 	wazero_runtime "github.com/ChainSafe/gossamer/lib/runtime/wazero"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -74,7 +76,7 @@ func (u UnifiedReputationChange) CostOrBenefit() int32 {
 	case CostMajorRepeated:
 		return -600_000
 	case Malicious:
-		return -1 << 31 // Equivalent to i32::MIN
+		return math.MinInt32
 	case BenefitMajorFirst:
 		return 300_000
 	case BenefitMajor:
@@ -147,10 +149,7 @@ func (r *ReputationAggregator) singleSend(overseerCh chan<- NetworkBridgeTxMessa
 
 // add accumulates a reputation change for a peer.
 func (r *ReputationAggregator) add(peerID peer.ID, rep UnifiedReputationChange) {
-	if _, exists := r.byPeer[peerID]; !exists {
-		r.byPeer[peerID] = 0
-	}
-	r.byPeer[peerID] += rep.CostOrBenefit()
+	r.byPeer[peerID] = primitives.SaturatingAdd(r.byPeer[peerID], rep.CostOrBenefit())
 }
 
 // SigningKeyAndIndex finds the first key we can sign with from the given set of validators,
