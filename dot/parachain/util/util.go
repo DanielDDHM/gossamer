@@ -153,11 +153,6 @@ func (r *ReputationAggregator) add(peerID peer.ID, rep UnifiedReputationChange) 
 	r.byPeer[peerID] += rep.CostOrBenefit()
 }
 
-// AddReputation updates a batch with a reputation change for a peer.
-func AddReputation(batch map[peer.ID]int32, peerID peer.ID, rep UnifiedReputationChange) {
-	batch[peerID] += rep.CostOrBenefit()
-}
-
 // SigningKeyAndIndex finds the first key we can sign with from the given set of validators,
 // if any, and returns it along with the validator index.
 func SigningKeyAndIndex(
