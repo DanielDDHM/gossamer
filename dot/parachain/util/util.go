@@ -132,7 +132,7 @@ func (r *ReputationAggregator) Modify(overseerCh chan<- NetworkBridgeTxMessage, 
 		return
 	}
 
-	r.add(peerID, rep)
+	r.byPeer[peerID] = primitives.SaturatingAdd(r.byPeer[peerID], rep.CostOrBenefit())
 	fmt.Printf("Accumulated reputation change for peer %s: %+v\n", peerID, rep)
 }
 
@@ -145,11 +145,6 @@ func (r *ReputationAggregator) singleSend(overseerCh chan<- NetworkBridgeTxMessa
 	}
 	overseerCh <- message
 	fmt.Printf("Sent immediate reputation change for peer %s: %+v\n", peerID, rep)
-}
-
-// add accumulates a reputation change for a peer.
-func (r *ReputationAggregator) add(peerID peer.ID, rep UnifiedReputationChange) {
-	r.byPeer[peerID] = primitives.SaturatingAdd(r.byPeer[peerID], rep.CostOrBenefit())
 }
 
 // SigningKeyAndIndex finds the first key we can sign with from the given set of validators,
