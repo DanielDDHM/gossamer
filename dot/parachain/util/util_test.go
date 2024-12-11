@@ -8,7 +8,7 @@ import (
 )
 
 func TestReputationAggregator_SendImmediately(t *testing.T) {
-	// Mock channel
+
 	overseerCh := make(chan NetworkBridgeTxMessage, 1)
 
 	// Create a new aggregator with immediate send logic for Malicious type
@@ -20,7 +20,7 @@ func TestReputationAggregator_SendImmediately(t *testing.T) {
 	peerID := peer.ID("peer1")
 	repChange := UnifiedReputationChange{
 		Type:   Malicious,
-		Reason: "Detected malicious behavior",
+		Reason: "Detected malicious behaviour",
 	}
 
 	// Modify the aggregator
@@ -37,7 +37,7 @@ func TestReputationAggregator_SendImmediately(t *testing.T) {
 }
 
 func TestReputationAggregator_BatchSend(t *testing.T) {
-	// Mock channel
+
 	overseerCh := make(chan NetworkBridgeTxMessage, 1)
 
 	// Create a new aggregator with no immediate send logic
@@ -48,8 +48,8 @@ func TestReputationAggregator_BatchSend(t *testing.T) {
 	// Add multiple reputation changes
 	peerID1 := peer.ID("peer1")
 	peerID2 := peer.ID("peer2")
-	aggregator.Modify(overseerCh, peerID1, UnifiedReputationChange{Type: BenefitMinor, Reason: "Good behavior"})
-	aggregator.Modify(overseerCh, peerID2, UnifiedReputationChange{Type: BenefitMajor, Reason: "Excellent behavior"})
+	aggregator.Modify(overseerCh, peerID1, UnifiedReputationChange{Type: BenefitMinor, Reason: "Good behaviour"})
+	aggregator.Modify(overseerCh, peerID2, UnifiedReputationChange{Type: BenefitMajor, Reason: "Excellent behaviour"})
 
 	// Verify no messages were sent yet
 	select {
@@ -73,7 +73,7 @@ func TestReputationAggregator_BatchSend(t *testing.T) {
 }
 
 func TestReputationAggregator_ClearAfterSend(t *testing.T) {
-	// Mock channel
+
 	overseerCh := make(chan NetworkBridgeTxMessage, 1)
 
 	// Create a new aggregator
@@ -101,7 +101,7 @@ func TestReputationAggregator_ClearAfterSend(t *testing.T) {
 }
 
 func TestReputationAggregator_ConflictResolution(t *testing.T) {
-	// Mock channel
+
 	overseerCh := make(chan NetworkBridgeTxMessage, 1)
 
 	// Create a new aggregator
@@ -111,7 +111,7 @@ func TestReputationAggregator_ConflictResolution(t *testing.T) {
 
 	// Add multiple reputation changes for the same peer
 	peerID := peer.ID("peer1")
-	aggregator.Modify(overseerCh, peerID, UnifiedReputationChange{Type: BenefitMajor, Reason: "Helpful behavior"})
+	aggregator.Modify(overseerCh, peerID, UnifiedReputationChange{Type: BenefitMajor, Reason: "Helpful behaviour"})
 	aggregator.Modify(overseerCh, peerID, UnifiedReputationChange{Type: CostMinor, Reason: "Minor issue"})
 
 	// Call Send to flush changes
@@ -128,7 +128,7 @@ func TestReputationAggregator_ConflictResolution(t *testing.T) {
 }
 
 func TestReputationAggregator_NoActionWithoutChanges(t *testing.T) {
-	// Mock channel
+
 	overseerCh := make(chan NetworkBridgeTxMessage, 1)
 
 	// Create a new aggregator
@@ -144,6 +144,6 @@ func TestReputationAggregator_NoActionWithoutChanges(t *testing.T) {
 	case <-overseerCh:
 		t.Error("Expected no message, but one was sent")
 	default:
-		// Expected behavior
+		// Expected behaviour
 	}
 }
