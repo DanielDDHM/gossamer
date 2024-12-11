@@ -123,7 +123,11 @@ func (r *ReputationAggregator) Send(overseerCh chan<- NetworkBridgeTxMessage) {
 }
 
 // Modify processes a reputation change, sending it immediately if necessary or accumulating it.
-func (r *ReputationAggregator) Modify(overseerCh chan<- NetworkBridgeTxMessage, peerID peer.ID, rep UnifiedReputationChange) {
+func (r *ReputationAggregator) Modify(
+	overseerCh chan<- NetworkBridgeTxMessage,
+	peerID peer.ID,
+	rep UnifiedReputationChange,
+) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -136,7 +140,11 @@ func (r *ReputationAggregator) Modify(overseerCh chan<- NetworkBridgeTxMessage, 
 }
 
 // singleSend sends a single reputation change directly.
-func (r *ReputationAggregator) singleSend(overseerCh chan<- NetworkBridgeTxMessage, peerID peer.ID, rep UnifiedReputationChange) {
+func (r *ReputationAggregator) singleSend(
+	overseerCh chan<- NetworkBridgeTxMessage,
+	peerID peer.ID,
+	rep UnifiedReputationChange,
+) {
 	message := NetworkBridgeTxMessage{
 		ReportPeerMessageBatch: map[peer.ID]int32{
 			peerID: rep.CostOrBenefit(),
