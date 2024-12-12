@@ -2,6 +2,7 @@ package statementdistribution
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ChainSafe/gossamer/internal/log"
 
@@ -14,21 +15,41 @@ var logger = log.NewFromGlobal(log.AddContext("pkg", "statement-distribution"))
 type StatementDistribution struct {
 }
 
-func (s StatementDistribution) Run(ctx context.Context, overseerToSubSystem <-chan any) {
+// MuxedMessage represents a combined message with its source
+type MuxedMessage struct {
+	Source  string
+	Message any
+}
+
+func (s StatementDistribution) Run(
+	ctx context.Context,
+	overseerToSubSystem <-chan any,
+	v1RequesterChannel <-chan any,
+	v1CommChannel <-chan any,
+	v2CommChannel <-chan any,
+	receiverRespCh <-chan any,
+	retryReqCh <-chan any,
+) {
+	muxedChannel := FanIn(
+		ctx,
+		overseerToSubSystem,
+		v1RequesterChannel,
+		v1CommChannel,
+		v2CommChannel,
+		receiverRespCh,
+		retryReqCh,
+	)
+
 	for {
 		select {
-		case msg, ok := <-overseerToSubSystem:
-			if !ok {
-				return
-			}
-			err := s.processMessage(msg)
+		case muxedMsg := <-muxedChannel:
+			err := s.processMuxedMessage(muxedMsg)
 			if err != nil {
-				logger.Errorf("processing overseer message: %w", err)
+				logger.Errorf("error processing muxed message: %w", err)
 			}
 		case <-ctx.Done():
-			if err := ctx.Err(); err != nil {
-				logger.Errorf("ctx error: %v\n", err)
-			}
+			logger.Infof("shutting down: %v", ctx.Err())
+			return
 		}
 	}
 }
@@ -54,6 +75,33 @@ func (s StatementDistribution) processMessage(msg any) error {
 	return nil
 }
 
+func (s StatementDistribution) processMuxedMessage(muxedMsg MuxedMessage) error {
+	switch muxedMsg.Source {
+	case "SubsystemMsg":
+		// Use processMessage for messages from overseerToSubSystem
+		return s.processMessage(muxedMsg.Message)
+	case "V1Requester":
+		// Handle legacy V1Requester messages
+		return nil
+	case "V1Responder":
+		// Handle legacy V1Responder messages
+		return nil
+	case "V2Responder":
+		// Handle V2Responder messages
+		return nil
+	case "Receive_Response":
+		// Handle response messages
+		return nil
+	case "Retry_Request":
+		// Do nothing for retry requests
+		logger.Infof("received retry request, no action taken")
+		return nil
+	default:
+		logger.Warnf("unknown message source: %s", muxedMsg.Source)
+		return fmt.Errorf("unknown message source: %s", muxedMsg.Source)
+	}
+}
+
 func (s StatementDistribution) Name() parachaintypes.SubSystemName {
 	return parachaintypes.StatementDistribution
 }
@@ -69,3 +117,52 @@ func (s StatementDistribution) ProcessBlockFinalizedSignal(signal parachaintypes
 }
 
 func (s StatementDistribution) Stop() {}
+
+func FanIn(
+	ctx context.Context,
+	overseerChannel <-chan any,
+	v1RequesterChannel <-chan any,
+	v1CommChannel <-chan any,
+	v2CommChannel <-chan any,
+	receiverRespCh <-chan any,
+	retryReqCh <-chan any,
+) <-chan MuxedMessage {
+	output := make(chan MuxedMessage)
+
+	go func() {
+		defer close(output)
+		for {
+			select {
+			// On each case verify if the channel is open before send the message
+			case <-ctx.Done():
+				return
+			case msg, ok := <-overseerChannel:
+				if ok {
+					output <- MuxedMessage{Source: "SubsystemMsg", Message: msg}
+				}
+			case msg, ok := <-v1RequesterChannel:
+				if ok {
+					output <- MuxedMessage{Source: "V1Requester", Message: msg}
+				}
+			case msg, ok := <-v1CommChannel:
+				if ok {
+					output <- MuxedMessage{Source: "V1Responder", Message: msg}
+				}
+			case msg, ok := <-v2CommChannel:
+				if ok {
+					output <- MuxedMessage{Source: "V2Responder", Message: msg}
+				}
+			case msg, ok := <-receiverRespCh:
+				if ok {
+					output <- MuxedMessage{Source: "Receive_Response", Message: msg}
+				}
+			case msg, ok := <-retryReqCh:
+				if ok {
+					output <- MuxedMessage{Source: "Retry_Request", Message: msg}
+				}
+			}
+		}
+	}()
+
+	return output
+}
