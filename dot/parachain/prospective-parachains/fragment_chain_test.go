@@ -1,15 +1,14 @@
-package fragmentchain
+package prospectiveparachains
 
 import (
 	"bytes"
 	"errors"
 	"maps"
-	"math/rand/v2"
+	"math/rand"
 	"slices"
 	"testing"
 
 	parachaintypes "github.com/ChainSafe/gossamer/dot/parachain/types"
-	inclusionemulator "github.com/ChainSafe/gossamer/dot/parachain/util/inclusion-emulator"
 	"github.com/ChainSafe/gossamer/lib/common"
 	"github.com/ChainSafe/gossamer/lib/crypto/sr25519"
 	"github.com/ChainSafe/gossamer/pkg/scale"
@@ -19,26 +18,26 @@ import (
 )
 
 func TestCandidateStorage_RemoveCandidate(t *testing.T) {
-	storage := &CandidateStorage{
-		byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-		byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-		byCandidateHash: make(map[parachaintypes.CandidateHash]*CandidateEntry),
+	storage := &candidateStorage{
+		byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+		byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+		byCandidateHash: make(map[parachaintypes.CandidateHash]*candidateEntry),
 	}
 
 	candidateHash := parachaintypes.CandidateHash{Value: common.Hash{1, 2, 3}}
 	parentHeadHash := common.Hash{4, 5, 6}
 	outputHeadHash := common.Hash{7, 8, 9}
 
-	entry := &CandidateEntry{
+	entry := &candidateEntry{
 		candidateHash:      candidateHash,
 		parentHeadDataHash: parentHeadHash,
 		outputHeadDataHash: outputHeadHash,
-		state:              Backed,
+		state:              backed,
 	}
 
 	storage.byCandidateHash[candidateHash] = entry
-	storage.byParentHead[parentHeadHash] = map[parachaintypes.CandidateHash]any{candidateHash: struct{}{}}
-	storage.byOutputHead[outputHeadHash] = map[parachaintypes.CandidateHash]any{candidateHash: struct{}{}}
+	storage.byParentHead[parentHeadHash] = map[parachaintypes.CandidateHash]struct{}{candidateHash: {}}
+	storage.byOutputHead[outputHeadHash] = map[parachaintypes.CandidateHash]struct{}{candidateHash: {}}
 
 	storage.removeCandidate(candidateHash)
 
@@ -53,44 +52,44 @@ func TestCandidateStorage_RemoveCandidate(t *testing.T) {
 }
 
 func TestCandidateStorage_MarkBacked(t *testing.T) {
-	storage := &CandidateStorage{
-		byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-		byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-		byCandidateHash: make(map[parachaintypes.CandidateHash]*CandidateEntry),
+	storage := &candidateStorage{
+		byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+		byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+		byCandidateHash: make(map[parachaintypes.CandidateHash]*candidateEntry),
 	}
 
 	candidateHash := parachaintypes.CandidateHash{Value: common.Hash{1, 2, 3}}
 	parentHeadHash := common.Hash{4, 5, 6}
 	outputHeadHash := common.Hash{7, 8, 9}
 
-	entry := &CandidateEntry{
+	entry := &candidateEntry{
 		candidateHash:      candidateHash,
 		parentHeadDataHash: parentHeadHash,
 		outputHeadDataHash: outputHeadHash,
-		state:              Seconded,
+		state:              seconded,
 	}
 
 	storage.byCandidateHash[candidateHash] = entry
-	storage.byParentHead[parentHeadHash] = map[parachaintypes.CandidateHash]any{candidateHash: struct{}{}}
-	storage.byOutputHead[outputHeadHash] = map[parachaintypes.CandidateHash]any{candidateHash: struct{}{}}
+	storage.byParentHead[parentHeadHash] = map[parachaintypes.CandidateHash]struct{}{candidateHash: {}}
+	storage.byOutputHead[outputHeadHash] = map[parachaintypes.CandidateHash]struct{}{candidateHash: {}}
 
 	storage.markBacked(candidateHash)
 
-	assert.Equal(t, Backed, entry.state, "candidate state should be marked as backed")
+	assert.Equal(t, backed, entry.state, "candidate state should be marked as backed")
 }
 
 func TestCandidateStorage_HeadDataByHash(t *testing.T) {
 	tests := map[string]struct {
-		setup    func() *CandidateStorage
+		setup    func() *candidateStorage
 		hash     common.Hash
 		expected *parachaintypes.HeadData
 	}{
 		"find_head_data_of_first_candidate_using_output_head_data_hash": {
-			setup: func() *CandidateStorage {
-				storage := &CandidateStorage{
-					byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-					byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-					byCandidateHash: make(map[parachaintypes.CandidateHash]*CandidateEntry),
+			setup: func() *candidateStorage {
+				storage := &candidateStorage{
+					byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+					byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+					byCandidateHash: make(map[parachaintypes.CandidateHash]*candidateEntry),
 				}
 
 				candidateHash := parachaintypes.CandidateHash{Value: common.Hash{1, 2, 3}}
@@ -98,11 +97,11 @@ func TestCandidateStorage_HeadDataByHash(t *testing.T) {
 				outputHeadHash := common.Hash{7, 8, 9}
 				headData := parachaintypes.HeadData{Data: []byte{10, 11, 12}}
 
-				entry := &CandidateEntry{
+				entry := &candidateEntry{
 					candidateHash:      candidateHash,
 					parentHeadDataHash: parentHeadHash,
 					outputHeadDataHash: outputHeadHash,
-					candidate: inclusionemulator.ProspectiveCandidate{
+					candidate: &ProspectiveCandidate{
 						Commitments: parachaintypes.CandidateCommitments{
 							HeadData: headData,
 						},
@@ -110,8 +109,8 @@ func TestCandidateStorage_HeadDataByHash(t *testing.T) {
 				}
 
 				storage.byCandidateHash[candidateHash] = entry
-				storage.byParentHead[parentHeadHash] = map[parachaintypes.CandidateHash]any{candidateHash: struct{}{}}
-				storage.byOutputHead[outputHeadHash] = map[parachaintypes.CandidateHash]any{candidateHash: struct{}{}}
+				storage.byParentHead[parentHeadHash] = map[parachaintypes.CandidateHash]struct{}{candidateHash: {}}
+				storage.byOutputHead[outputHeadHash] = map[parachaintypes.CandidateHash]struct{}{candidateHash: {}}
 
 				return storage
 			},
@@ -119,11 +118,11 @@ func TestCandidateStorage_HeadDataByHash(t *testing.T) {
 			expected: &parachaintypes.HeadData{Data: []byte{10, 11, 12}},
 		},
 		"find_head_data_using_parent_head_data_hash_from_second_candidate": {
-			setup: func() *CandidateStorage {
-				storage := &CandidateStorage{
-					byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-					byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-					byCandidateHash: make(map[parachaintypes.CandidateHash]*CandidateEntry),
+			setup: func() *candidateStorage {
+				storage := &candidateStorage{
+					byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+					byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+					byCandidateHash: make(map[parachaintypes.CandidateHash]*candidateEntry),
 				}
 
 				candidateHash := parachaintypes.CandidateHash{Value: common.Hash{13, 14, 15}}
@@ -131,11 +130,11 @@ func TestCandidateStorage_HeadDataByHash(t *testing.T) {
 				outputHeadHash := common.Hash{19, 20, 21}
 				headData := parachaintypes.HeadData{Data: []byte{22, 23, 24}}
 
-				entry := &CandidateEntry{
+				entry := &candidateEntry{
 					candidateHash:      candidateHash,
 					parentHeadDataHash: parentHeadHash,
 					outputHeadDataHash: outputHeadHash,
-					candidate: inclusionemulator.ProspectiveCandidate{
+					candidate: &ProspectiveCandidate{
 						PersistedValidationData: parachaintypes.PersistedValidationData{
 							ParentHead: headData,
 						},
@@ -143,8 +142,8 @@ func TestCandidateStorage_HeadDataByHash(t *testing.T) {
 				}
 
 				storage.byCandidateHash[candidateHash] = entry
-				storage.byParentHead[parentHeadHash] = map[parachaintypes.CandidateHash]any{candidateHash: struct{}{}}
-				storage.byOutputHead[outputHeadHash] = map[parachaintypes.CandidateHash]any{candidateHash: struct{}{}}
+				storage.byParentHead[parentHeadHash] = map[parachaintypes.CandidateHash]struct{}{candidateHash: {}}
+				storage.byOutputHead[outputHeadHash] = map[parachaintypes.CandidateHash]struct{}{candidateHash: {}}
 
 				return storage
 			},
@@ -152,11 +151,11 @@ func TestCandidateStorage_HeadDataByHash(t *testing.T) {
 			expected: &parachaintypes.HeadData{Data: []byte{22, 23, 24}},
 		},
 		"use_nonexistent_hash_and_should_get_nil": {
-			setup: func() *CandidateStorage {
-				storage := &CandidateStorage{
-					byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-					byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-					byCandidateHash: make(map[parachaintypes.CandidateHash]*CandidateEntry),
+			setup: func() *candidateStorage {
+				storage := &candidateStorage{
+					byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+					byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+					byCandidateHash: make(map[parachaintypes.CandidateHash]*candidateEntry),
 				}
 				return storage
 			},
@@ -164,11 +163,11 @@ func TestCandidateStorage_HeadDataByHash(t *testing.T) {
 			expected: nil,
 		},
 		"insert_0_candidates_and_try_to_find_but_should_get_nil": {
-			setup: func() *CandidateStorage {
-				return &CandidateStorage{
-					byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-					byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-					byCandidateHash: make(map[parachaintypes.CandidateHash]*CandidateEntry),
+			setup: func() *candidateStorage {
+				return &candidateStorage{
+					byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+					byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+					byCandidateHash: make(map[parachaintypes.CandidateHash]*candidateEntry),
 				}
 			},
 			hash:     common.Hash{7, 8, 9},
@@ -188,16 +187,16 @@ func TestCandidateStorage_HeadDataByHash(t *testing.T) {
 
 func TestCandidateStorage_PossibleBackedParaChildren(t *testing.T) {
 	tests := map[string]struct {
-		setup    func() *CandidateStorage
+		setup    func() *candidateStorage
 		hash     common.Hash
-		expected []*CandidateEntry
+		expected []*candidateEntry
 	}{
 		"insert_2_candidates_for_same_parent_one_seconded_one_backed": {
-			setup: func() *CandidateStorage {
-				storage := &CandidateStorage{
-					byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-					byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-					byCandidateHash: make(map[parachaintypes.CandidateHash]*CandidateEntry),
+			setup: func() *candidateStorage {
+				storage := &candidateStorage{
+					byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+					byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+					byCandidateHash: make(map[parachaintypes.CandidateHash]*candidateEntry),
 				}
 
 				candidateHash1 := parachaintypes.CandidateHash{Value: common.Hash{1, 2, 3}}
@@ -207,38 +206,42 @@ func TestCandidateStorage_PossibleBackedParaChildren(t *testing.T) {
 				candidateHash2 := parachaintypes.CandidateHash{Value: common.Hash{10, 11, 12}}
 				outputHeadHash2 := common.Hash{13, 14, 15}
 
-				entry1 := &CandidateEntry{
+				entry1 := &candidateEntry{
 					candidateHash:      candidateHash1,
 					parentHeadDataHash: parentHeadHash,
 					outputHeadDataHash: outputHeadHash1,
-					state:              Seconded,
+					state:              seconded,
 				}
 
-				entry2 := &CandidateEntry{
+				entry2 := &candidateEntry{
 					candidateHash:      candidateHash2,
 					parentHeadDataHash: parentHeadHash,
 					outputHeadDataHash: outputHeadHash2,
-					state:              Backed,
+					state:              backed,
 				}
 
 				storage.byCandidateHash[candidateHash1] = entry1
 				storage.byCandidateHash[candidateHash2] = entry2
-				storage.byParentHead[parentHeadHash] = map[parachaintypes.CandidateHash]any{
-					candidateHash1: struct{}{},
-					candidateHash2: struct{}{},
+				storage.byParentHead[parentHeadHash] = map[parachaintypes.CandidateHash]struct{}{
+					candidateHash1: {},
+					candidateHash2: {},
 				}
 
 				return storage
 			},
-			hash:     common.Hash{4, 5, 6},
-			expected: []*CandidateEntry{{candidateHash: parachaintypes.CandidateHash{Value: common.Hash{10, 11, 12}}, parentHeadDataHash: common.Hash{4, 5, 6}, outputHeadDataHash: common.Hash{13, 14, 15}, state: Backed}},
+			hash: common.Hash{4, 5, 6},
+			expected: []*candidateEntry{{candidateHash: parachaintypes.CandidateHash{
+				Value: common.Hash{10, 11, 12}},
+				parentHeadDataHash: common.Hash{4, 5, 6},
+				outputHeadDataHash: common.Hash{13, 14, 15}, state: backed},
+			},
 		},
 		"insert_nothing_and_call_function_should_return_nothing": {
-			setup: func() *CandidateStorage {
-				return &CandidateStorage{
-					byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-					byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]any),
-					byCandidateHash: make(map[parachaintypes.CandidateHash]*CandidateEntry),
+			setup: func() *candidateStorage {
+				return &candidateStorage{
+					byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+					byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
+					byCandidateHash: make(map[parachaintypes.CandidateHash]*candidateEntry),
 				}
 			},
 			hash:     common.Hash{4, 5, 6},
@@ -250,7 +253,7 @@ func TestCandidateStorage_PossibleBackedParaChildren(t *testing.T) {
 		tt := tt
 		t.Run(name, func(t *testing.T) {
 			storage := tt.setup()
-			var result []*CandidateEntry
+			var result []*candidateEntry
 			for entry := range storage.possibleBackedParaChildren(tt.hash) {
 				result = append(result, entry)
 			}
@@ -261,51 +264,51 @@ func TestCandidateStorage_PossibleBackedParaChildren(t *testing.T) {
 
 func TestEarliestRelayParent(t *testing.T) {
 	tests := map[string]struct {
-		setup  func() *Scope
-		expect inclusionemulator.RelayChainBlockInfo
+		setup  func() *scope
+		expect RelayChainBlockInfo
 	}{
-		"returns from ancestors": {
-			setup: func() *Scope {
-				relayParent := inclusionemulator.RelayChainBlockInfo{
+		"returns_from_ancestors": {
+			setup: func() *scope {
+				relayParent := RelayChainBlockInfo{
 					Hash:   common.Hash{0x01},
 					Number: 10,
 				}
-				baseConstraints := &inclusionemulator.Constraints{
+				baseConstraints := &parachaintypes.Constraints{
 					MinRelayParentNumber: 5,
 				}
-				ancestor := inclusionemulator.RelayChainBlockInfo{
+				ancestor := RelayChainBlockInfo{
 					Hash:   common.Hash{0x02},
 					Number: 9,
 				}
-				ancestorsMap := btree.NewMap[uint, inclusionemulator.RelayChainBlockInfo](100)
+				ancestorsMap := btree.NewMap[uint, RelayChainBlockInfo](100)
 				ancestorsMap.Set(ancestor.Number, ancestor)
-				return &Scope{
+				return &scope{
 					relayParent:     relayParent,
 					baseConstraints: baseConstraints,
 					ancestors:       ancestorsMap,
 				}
 			},
-			expect: inclusionemulator.RelayChainBlockInfo{
+			expect: RelayChainBlockInfo{
 				Hash:   common.Hash{0x02},
 				Number: 9,
 			},
 		},
-		"returns relayParent": {
-			setup: func() *Scope {
-				relayParent := inclusionemulator.RelayChainBlockInfo{
+		"returns_relayParent": {
+			setup: func() *scope {
+				relayParent := RelayChainBlockInfo{
 					Hash:   common.Hash{0x01},
 					Number: 10,
 				}
-				baseConstraints := &inclusionemulator.Constraints{
+				baseConstraints := &parachaintypes.Constraints{
 					MinRelayParentNumber: 5,
 				}
-				return &Scope{
+				return &scope{
 					relayParent:     relayParent,
 					baseConstraints: baseConstraints,
-					ancestors:       btree.NewMap[uint, inclusionemulator.RelayChainBlockInfo](100),
+					ancestors:       btree.NewMap[uint, RelayChainBlockInfo](100),
 				}
 			},
-			expect: inclusionemulator.RelayChainBlockInfo{
+			expect: RelayChainBlockInfo{
 				Hash:   common.Hash{0x01},
 				Number: 10,
 			},
@@ -324,26 +327,26 @@ func TestEarliestRelayParent(t *testing.T) {
 
 func TestBackedChain_RevertToParentHash(t *testing.T) {
 	tests := map[string]struct {
-		setup                    func() *BackedChain
+		setup                    func() *backedChain
 		hash                     common.Hash
 		expectedChainSize        int
 		expectedRemovedFragments int
 	}{
 		"revert_to_parent_at_pos_2": {
-			setup: func() *BackedChain {
-				chain := &BackedChain{
-					chain:        make([]*FragmentNode, 0),
+			setup: func() *backedChain {
+				chain := &backedChain{
+					chain:        make([]*fragmentNode, 0),
 					byParentHead: make(map[common.Hash]parachaintypes.CandidateHash),
 					byOutputHead: make(map[common.Hash]parachaintypes.CandidateHash),
 					candidates:   make(map[parachaintypes.CandidateHash]struct{}),
 				}
 
 				for i := 0; i < 5; i++ {
-					node := &FragmentNode{
+					node := &fragmentNode{
 						candidateHash:           parachaintypes.CandidateHash{Value: common.Hash{byte(i)}},
 						parentHeadDataHash:      common.Hash{byte(i)},
 						outputHeadDataHash:      common.Hash{byte(i + 1)},
-						cumulativeModifications: &inclusionemulator.ConstraintModifications{},
+						cumulativeModifications: &ConstraintModifications{},
 					}
 					chain.Push(node)
 				}
@@ -354,20 +357,20 @@ func TestBackedChain_RevertToParentHash(t *testing.T) {
 			expectedRemovedFragments: 2,
 		},
 		"revert_to_parent_at_pos_0": {
-			setup: func() *BackedChain {
-				chain := &BackedChain{
-					chain:        make([]*FragmentNode, 0),
+			setup: func() *backedChain {
+				chain := &backedChain{
+					chain:        make([]*fragmentNode, 0),
 					byParentHead: make(map[common.Hash]parachaintypes.CandidateHash),
 					byOutputHead: make(map[common.Hash]parachaintypes.CandidateHash),
 					candidates:   make(map[parachaintypes.CandidateHash]struct{}),
 				}
 
 				for i := 0; i < 2; i++ {
-					node := &FragmentNode{
+					node := &fragmentNode{
 						candidateHash:           parachaintypes.CandidateHash{Value: common.Hash{byte(i)}},
 						parentHeadDataHash:      common.Hash{byte(i)},
 						outputHeadDataHash:      common.Hash{byte(i + 1)},
-						cumulativeModifications: &inclusionemulator.ConstraintModifications{},
+						cumulativeModifications: &ConstraintModifications{},
 					}
 					chain.Push(node)
 				}
@@ -378,20 +381,20 @@ func TestBackedChain_RevertToParentHash(t *testing.T) {
 			expectedRemovedFragments: 1,
 		},
 		"no_node_removed": {
-			setup: func() *BackedChain {
-				chain := &BackedChain{
-					chain:        make([]*FragmentNode, 0),
+			setup: func() *backedChain {
+				chain := &backedChain{
+					chain:        make([]*fragmentNode, 0),
 					byParentHead: make(map[common.Hash]parachaintypes.CandidateHash),
 					byOutputHead: make(map[common.Hash]parachaintypes.CandidateHash),
 					candidates:   make(map[parachaintypes.CandidateHash]struct{}),
 				}
 
 				for i := 0; i < 3; i++ {
-					node := &FragmentNode{
+					node := &fragmentNode{
 						candidateHash:           parachaintypes.CandidateHash{Value: common.Hash{byte(i)}},
 						parentHeadDataHash:      common.Hash{byte(i)},
 						outputHeadDataHash:      common.Hash{byte(i + 1)},
-						cumulativeModifications: &inclusionemulator.ConstraintModifications{},
+						cumulativeModifications: &ConstraintModifications{},
 					}
 					chain.Push(node)
 				}
@@ -429,22 +432,22 @@ func TestBackedChain_RevertToParentHash(t *testing.T) {
 }
 
 func TestFragmentChainWithFreshScope(t *testing.T) {
-	relayParent := inclusionemulator.RelayChainBlockInfo{
+	relayParent := RelayChainBlockInfo{
 		Hash:        common.Hash{0x00},
 		Number:      0,
 		StorageRoot: common.Hash{0x00},
 	}
 
-	baseConstraints := &inclusionemulator.Constraints{
+	baseConstraints := &parachaintypes.Constraints{
 		RequiredParent:       parachaintypes.HeadData{Data: []byte{byte(0)}},
 		MinRelayParentNumber: 0,
 		ValidationCodeHash:   parachaintypes.ValidationCodeHash(common.Hash{0x03}),
 	}
 
-	scope, err := NewScopeWithAncestors(relayParent, baseConstraints, nil, 10, nil)
+	scope, err := newScopeWithAncestors(relayParent, baseConstraints, nil, 10, nil)
 	assert.NoError(t, err)
 
-	candidateStorage := NewCandidateStorage()
+	candidateStorage := newCandidateStorage()
 
 	// Create 3 candidate entries forming a chain
 	for i := 0; i < 3; i++ {
@@ -478,7 +481,7 @@ func TestFragmentChainWithFreshScope(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	fragmentChain := NewFragmentChain(scope, candidateStorage)
+	fragmentChain := newFragmentChain(scope, candidateStorage)
 
 	// Check that the best chain contains 3 candidates
 	assert.Equal(t, 3, len(fragmentChain.bestChain.chain))
@@ -488,8 +491,8 @@ func makeConstraints(
 	minRelayParentNumber uint,
 	validWatermarks []uint,
 	requiredParent parachaintypes.HeadData,
-) *inclusionemulator.Constraints {
-	return &inclusionemulator.Constraints{
+) *parachaintypes.Constraints {
+	return &parachaintypes.Constraints{
 		MinRelayParentNumber:  minRelayParentNumber,
 		MaxPoVSize:            1_000_000,
 		MaxCodeSize:           1_000_000,
@@ -497,10 +500,10 @@ func makeConstraints(
 		UmpRemainingBytes:     1_000,
 		MaxUmpNumPerCandidate: 10,
 		DmpRemainingMessages:  make([]uint, 10),
-		HrmpInbound: inclusionemulator.InboundHrmpLimitations{
+		HrmpInbound: parachaintypes.InboundHrmpLimitations{
 			ValidWatermarks: validWatermarks,
 		},
-		HrmpChannelsOut:        make(map[parachaintypes.ParaID]inclusionemulator.OutboundHrmpChannelLimitations),
+		HrmpChannelsOut:        make(map[parachaintypes.ParaID]parachaintypes.OutboundHrmpChannelLimitations),
 		MaxHrmpNumPerCandidate: 0,
 		RequiredParent:         requiredParent,
 		ValidationCodeHash:     parachaintypes.ValidationCodeHash(common.BytesToHash(bytes.Repeat([]byte{42}, 32))),
@@ -561,20 +564,20 @@ func makeCommittedCandidate(
 
 func TestScopeRejectsAncestors(t *testing.T) {
 	tests := map[string]struct {
-		relayParent         *inclusionemulator.RelayChainBlockInfo
-		ancestors           []inclusionemulator.RelayChainBlockInfo
+		relayParent         *RelayChainBlockInfo
+		ancestors           []RelayChainBlockInfo
 		maxDepth            uint
-		baseConstraints     *inclusionemulator.Constraints
-		pendingAvailability []*PendindAvailability
+		baseConstraints     *parachaintypes.Constraints
+		pendingAvailability []*pendingAvailability
 		expectedError       error
 	}{
 		"rejects_ancestor_that_skips_blocks": {
-			relayParent: &inclusionemulator.RelayChainBlockInfo{
+			relayParent: &RelayChainBlockInfo{
 				Number:      10,
 				Hash:        common.BytesToHash(bytes.Repeat([]byte{0x10}, 32)),
 				StorageRoot: common.BytesToHash(bytes.Repeat([]byte{0x69}, 32)),
 			},
-			ancestors: []inclusionemulator.RelayChainBlockInfo{
+			ancestors: []RelayChainBlockInfo{
 				{
 					Number:      8,
 					Hash:        common.BytesToHash(bytes.Repeat([]byte{0x08}, 32)),
@@ -584,16 +587,16 @@ func TestScopeRejectsAncestors(t *testing.T) {
 			maxDepth: 2,
 			baseConstraints: makeConstraints(8, []uint{8, 9},
 				parachaintypes.HeadData{Data: []byte{0x01, 0x02, 0x03}}),
-			pendingAvailability: make([]*PendindAvailability, 0),
+			pendingAvailability: make([]*pendingAvailability, 0),
 			expectedError:       ErrUnexpectedAncestor{Number: 8, Prev: 10},
 		},
 		"rejects_ancestor_for_zero_block": {
-			relayParent: &inclusionemulator.RelayChainBlockInfo{
+			relayParent: &RelayChainBlockInfo{
 				Number:      0,
 				Hash:        common.BytesToHash(bytes.Repeat([]byte{0}, 32)),
 				StorageRoot: common.BytesToHash(bytes.Repeat([]byte{69}, 32)),
 			},
-			ancestors: []inclusionemulator.RelayChainBlockInfo{
+			ancestors: []RelayChainBlockInfo{
 				{
 					Number:      99999,
 					Hash:        common.BytesToHash(bytes.Repeat([]byte{99}, 32)),
@@ -602,16 +605,16 @@ func TestScopeRejectsAncestors(t *testing.T) {
 			},
 			maxDepth:            2,
 			baseConstraints:     makeConstraints(0, []uint{}, parachaintypes.HeadData{Data: []byte{1, 2, 3}}),
-			pendingAvailability: make([]*PendindAvailability, 0),
+			pendingAvailability: make([]*pendingAvailability, 0),
 			expectedError:       ErrUnexpectedAncestor{Number: 99999, Prev: 0},
 		},
 		"rejects_unordered_ancestors": {
-			relayParent: &inclusionemulator.RelayChainBlockInfo{
+			relayParent: &RelayChainBlockInfo{
 				Number:      5,
 				Hash:        common.BytesToHash(bytes.Repeat([]byte{0}, 32)),
 				StorageRoot: common.BytesToHash(bytes.Repeat([]byte{69}, 32)),
 			},
-			ancestors: []inclusionemulator.RelayChainBlockInfo{
+			ancestors: []RelayChainBlockInfo{
 				{
 					Number:      4,
 					Hash:        common.BytesToHash(bytes.Repeat([]byte{4}, 32)),
@@ -630,7 +633,7 @@ func TestScopeRejectsAncestors(t *testing.T) {
 			},
 			maxDepth:            2,
 			baseConstraints:     makeConstraints(0, []uint{2}, parachaintypes.HeadData{Data: []byte{1, 2, 3}}),
-			pendingAvailability: make([]*PendindAvailability, 0),
+			pendingAvailability: make([]*pendingAvailability, 0),
 			expectedError:       ErrUnexpectedAncestor{Number: 2, Prev: 4},
 		},
 	}
@@ -638,7 +641,12 @@ func TestScopeRejectsAncestors(t *testing.T) {
 	for name, tt := range tests {
 		tt := tt
 		t.Run(name, func(t *testing.T) {
-			scope, err := NewScopeWithAncestors(*tt.relayParent, tt.baseConstraints, tt.pendingAvailability, tt.maxDepth, tt.ancestors)
+			scope, err := newScopeWithAncestors(
+				*tt.relayParent,
+				tt.baseConstraints,
+				tt.pendingAvailability,
+				tt.maxDepth,
+				tt.ancestors)
 			require.ErrorIs(t, err, tt.expectedError)
 			require.Nil(t, scope)
 		})
@@ -646,13 +654,13 @@ func TestScopeRejectsAncestors(t *testing.T) {
 }
 
 func TestScopeOnlyTakesAncestorsUpToMin(t *testing.T) {
-	relayParent := inclusionemulator.RelayChainBlockInfo{
+	relayParent := RelayChainBlockInfo{
 		Number:      5,
 		Hash:        common.BytesToHash(bytes.Repeat([]byte{0}, 32)),
 		StorageRoot: common.BytesToHash(bytes.Repeat([]byte{69}, 32)),
 	}
 
-	ancestors := []inclusionemulator.RelayChainBlockInfo{
+	ancestors := []RelayChainBlockInfo{
 		{
 			Number:      4,
 			Hash:        common.BytesToHash(bytes.Repeat([]byte{4}, 32)),
@@ -671,10 +679,10 @@ func TestScopeOnlyTakesAncestorsUpToMin(t *testing.T) {
 	}
 
 	maxDepth := uint(2)
-	baseConstraints := makeConstraints(0, []uint{2}, parachaintypes.HeadData{Data: []byte{1, 2, 3}})
-	pendingAvailability := make([]*PendindAvailability, 0)
+	baseConstraints := makeConstraints(3, []uint{2}, parachaintypes.HeadData{Data: []byte{1, 2, 3}})
+	pendingAvailability := make([]*pendingAvailability, 0)
 
-	scope, err := NewScopeWithAncestors(relayParent, baseConstraints, pendingAvailability, maxDepth, ancestors)
+	scope, err := newScopeWithAncestors(relayParent, baseConstraints, pendingAvailability, maxDepth, ancestors)
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, scope.ancestors.Len())
@@ -705,8 +713,8 @@ func TestCandidateStorageMethods(t *testing.T) {
 				candidateHash, err := candidate.Hash()
 				require.NoError(t, err)
 
-				entry, err := NewCandidateEntry(parachaintypes.CandidateHash{Value: candidateHash},
-					candidate, wrongPvd, Seconded)
+				entry, err := newCandidateEntry(parachaintypes.CandidateHash{Value: candidateHash},
+					candidate, wrongPvd, seconded)
 				require.ErrorIs(t, err, ErrPersistedValidationDataMismatch)
 				require.Nil(t, entry)
 			},
@@ -736,10 +744,10 @@ func TestCandidateStorageMethods(t *testing.T) {
 				candidateHash, err := candidate.Hash()
 				require.NoError(t, err)
 
-				entry, err := NewCandidateEntry(parachaintypes.CandidateHash{Value: candidateHash},
-					candidate, pvd, Seconded)
+				entry, err := newCandidateEntry(parachaintypes.CandidateHash{Value: candidateHash},
+					candidate, pvd, seconded)
 				require.Nil(t, entry)
-				require.ErrorIs(t, err, ErrCandidateEntryZeroLengthCycle)
+				require.ErrorIs(t, err, ErrZeroLengthCycle)
 			},
 		},
 
@@ -764,15 +772,16 @@ func TestCandidateStorageMethods(t *testing.T) {
 				parentHeadHash, err := pvd.ParentHead.Hash()
 				require.NoError(t, err)
 
-				entry, err := NewCandidateEntry(candidateHash, candidate, pvd, Seconded)
+				entry, err := newCandidateEntry(candidateHash, candidate, pvd, seconded)
 				require.NoError(t, err)
 
-				storage := NewCandidateStorage()
+				storage := newCandidateStorage()
 
 				t.Run("add_candidate_entry_as_seconded", func(t *testing.T) {
 					err = storage.addCandidateEntry(entry)
 					require.NoError(t, err)
-					require.True(t, storage.contains(candidateHash))
+					_, ok := storage.byCandidateHash[candidateHash]
+					require.True(t, ok)
 
 					// should not have any possible backed candidate yet
 					for entry := range storage.possibleBackedParaChildren(parentHeadHash) {
@@ -785,7 +794,7 @@ func TestCandidateStorageMethods(t *testing.T) {
 
 					// re-add the candidate should fail
 					err = storage.addCandidateEntry(entry)
-					require.ErrorIs(t, err, ErrCandidateAlradyKnown)
+					require.ErrorIs(t, err, ErrCandidateAlreadyKnown)
 				})
 
 				t.Run("mark_candidate_entry_as_backed", func(t *testing.T) {
@@ -817,7 +826,8 @@ func TestCandidateStorageMethods(t *testing.T) {
 					// remove it twice should be fine
 					storage.removeCandidate(candidateHash)
 
-					require.False(t, storage.contains(candidateHash))
+					_, ok := storage.byCandidateHash[candidateHash]
+					require.False(t, ok)
 
 					// should not have any possible backed candidate anymore
 					for entry := range storage.possibleBackedParaChildren(parentHeadHash) {
@@ -851,10 +861,12 @@ func TestCandidateStorageMethods(t *testing.T) {
 				parentHeadHash, err := pvd.ParentHead.Hash()
 				require.NoError(t, err)
 
-				storage := NewCandidateStorage()
+				storage := newCandidateStorage()
 				err = storage.AddPendingAvailabilityCandidate(candidateHash, candidate, pvd)
 				require.NoError(t, err)
-				require.True(t, storage.contains(candidateHash))
+
+				_, ok := storage.byCandidateHash[candidateHash]
+				require.True(t, ok)
 
 				// here we should have 1 possible backed candidate when we
 				// use the parentHeadHash (parent of our current candidate) to query
@@ -889,7 +901,7 @@ func TestCandidateStorageMethods(t *testing.T) {
 					require.NoError(t, err)
 					candidateHash2 := parachaintypes.CandidateHash{Value: hash2}
 
-					candidateEntry2, err := NewCandidateEntry(candidateHash2, candidate2, pvd2, Seconded)
+					candidateEntry2, err := newCandidateEntry(candidateHash2, candidate2, pvd2, seconded)
 					require.NoError(t, err)
 
 					err = storage.addCandidateEntry(candidateEntry2)
@@ -933,8 +945,8 @@ func TestCandidateStorageMethods(t *testing.T) {
 func TestInitAndPopulateFromEmpty(t *testing.T) {
 	baseConstraints := makeConstraints(0, []uint{0}, parachaintypes.HeadData{Data: []byte{0x0a}})
 
-	scope, err := NewScopeWithAncestors(
-		inclusionemulator.RelayChainBlockInfo{
+	scope, err := newScopeWithAncestors(
+		RelayChainBlockInfo{
 			Number:      1,
 			Hash:        common.BytesToHash(bytes.Repeat([]byte{1}, 32)),
 			StorageRoot: common.BytesToHash(bytes.Repeat([]byte{2}, 32)),
@@ -946,18 +958,18 @@ func TestInitAndPopulateFromEmpty(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	chain := NewFragmentChain(scope, NewCandidateStorage())
+	chain := newFragmentChain(scope, newCandidateStorage())
 	assert.Equal(t, 0, chain.BestChainLen())
 	assert.Equal(t, 0, chain.UnconnectedLen())
 
-	newChain := NewFragmentChain(scope, NewCandidateStorage())
+	newChain := newFragmentChain(scope, newCandidateStorage())
 	newChain.PopulateFromPrevious(chain)
 	assert.Equal(t, 0, newChain.BestChainLen())
 	assert.Equal(t, 0, newChain.UnconnectedLen())
 }
 
-func populateFromPreviousStorage(scope *Scope, storage *CandidateStorage) *FragmentChain {
-	chain := NewFragmentChain(scope, NewCandidateStorage())
+func populateFromPreviousStorage(scope *scope, storage *candidateStorage) *fragmentChain {
+	chain := newFragmentChain(scope, newCandidateStorage())
 
 	// clone the value
 	prevChain := *chain
@@ -967,27 +979,27 @@ func populateFromPreviousStorage(scope *Scope, storage *CandidateStorage) *Fragm
 }
 
 func TestPopulateAndCheckPotential(t *testing.T) {
-	storage := NewCandidateStorage()
+	storage := newCandidateStorage()
 	paraID := parachaintypes.ParaID(5)
 
 	relayParentAHash := common.BytesToHash(bytes.Repeat([]byte{1}, 32))
 	relayParentBHash := common.BytesToHash(bytes.Repeat([]byte{2}, 32))
 	relayParentCHash := common.BytesToHash(bytes.Repeat([]byte{3}, 32))
 
-	relayParentAInfo := &inclusionemulator.RelayChainBlockInfo{
+	relayParentAInfo := &RelayChainBlockInfo{
 		Number: 0, Hash: relayParentAHash, StorageRoot: common.Hash{},
 	}
 
-	relayParentBInfo := &inclusionemulator.RelayChainBlockInfo{
+	relayParentBInfo := &RelayChainBlockInfo{
 		Number: 1, Hash: relayParentBHash, StorageRoot: common.Hash{},
 	}
 
-	relayParentCInfo := &inclusionemulator.RelayChainBlockInfo{
+	relayParentCInfo := &RelayChainBlockInfo{
 		Number: 2, Hash: relayParentCHash, StorageRoot: common.Hash{},
 	}
 
 	// the ancestors must be in the reverse order
-	ancestors := []inclusionemulator.RelayChainBlockInfo{
+	ancestors := []RelayChainBlockInfo{
 		*relayParentBInfo,
 		*relayParentAInfo,
 	}
@@ -997,12 +1009,15 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 
 	// helper function to hash the candidate and add its entry
 	// into the candidate storage
-	hashAndInsertCandididate := func(t *testing.T, storage *CandidateStorage,
-		candidate parachaintypes.CommittedCandidateReceipt, pvd parachaintypes.PersistedValidationData, state CandidateState) (parachaintypes.CandidateHash, *CandidateEntry) {
+	hashAndInsertCandididate := func(t *testing.T, storage *candidateStorage,
+		candidate parachaintypes.CommittedCandidateReceipt,
+		pvd parachaintypes.PersistedValidationData, state candidateState) (
+		parachaintypes.CandidateHash, *candidateEntry) {
+
 		hash, err := candidate.Hash()
 		require.NoError(t, err)
 		candidateHash := parachaintypes.CandidateHash{Value: hash}
-		entry, err := NewCandidateEntry(candidateHash, candidate, pvd, state)
+		entry, err := newCandidateEntry(candidateHash, candidate, pvd, state)
 		require.NoError(t, err)
 		err = storage.addCandidateEntry(entry)
 		require.NoError(t, err)
@@ -1011,11 +1026,11 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 	}
 
 	hashAndGetEntry := func(t *testing.T, candidate parachaintypes.CommittedCandidateReceipt,
-		pvd parachaintypes.PersistedValidationData, state CandidateState) (parachaintypes.CandidateHash, *CandidateEntry) {
+		pvd parachaintypes.PersistedValidationData, state candidateState) (parachaintypes.CandidateHash, *candidateEntry) {
 		hash, err := candidate.Hash()
 		require.NoError(t, err)
 		candidateHash := parachaintypes.CandidateHash{Value: hash}
-		entry, err := NewCandidateEntry(candidateHash, candidate, pvd, state)
+		entry, err := newCandidateEntry(candidateHash, candidate, pvd, state)
 		require.NoError(t, err)
 		return candidateHash, entry
 	}
@@ -1029,7 +1044,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		uint32(relayParentAInfo.Number),
 	)
 
-	candidateAHash, candidateAEntry := hashAndInsertCandididate(t, storage, candidateA, pvdA, Backed)
+	candidateAHash, candidateAEntry := hashAndInsertCandididate(t, storage, candidateA, pvdA, backed)
 
 	candidateBParaHead := parachaintypes.HeadData{Data: []byte{0x0c}}
 	pvdB, candidateB := makeCommittedCandidate(t, paraID,
@@ -1039,7 +1054,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		uint32(relayParentBInfo.Number),
 	)
 
-	candidateBHash, candidateBEntry := hashAndInsertCandididate(t, storage, candidateB, pvdB, Backed)
+	candidateBHash, candidateBEntry := hashAndInsertCandididate(t, storage, candidateB, pvdB, backed)
 
 	candidateCParaHead := parachaintypes.HeadData{Data: []byte{0x0d}}
 	pvdC, candidateC := makeCommittedCandidate(t, paraID,
@@ -1049,20 +1064,21 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		uint32(relayParentCInfo.Number),
 	)
 
-	candidateCHash, candidateCEntry := hashAndInsertCandididate(t, storage, candidateC, pvdC, Backed)
+	candidateCHash, candidateCEntry := hashAndInsertCandididate(t, storage, candidateC, pvdC, backed)
 
 	t.Run("candidate_A_doesnt_adhere_to_base_constraints", func(t *testing.T) {
-		wrongConstraints := []inclusionemulator.Constraints{
+		wrongConstraints := []parachaintypes.Constraints{
 			// define a constraint that requires a parent head data
 			// that is different from candidate A parent head
-			*makeConstraints(relayParentAInfo.Number, []uint{relayParentAInfo.Number}, parachaintypes.HeadData{Data: []byte{0x0e}}),
+			*makeConstraints(relayParentAInfo.Number,
+				[]uint{relayParentAInfo.Number}, parachaintypes.HeadData{Data: []byte{0x0e}}),
 
 			// the min relay parent for candidate A is wrong
 			*makeConstraints(relayParentBInfo.Number, []uint{0}, firstParachainHead),
 		}
 
 		for _, wrongConstraint := range wrongConstraints {
-			scope, err := NewScopeWithAncestors(
+			scope, err := newScopeWithAncestors(
 				*relayParentCInfo,
 				&wrongConstraint,
 				nil,
@@ -1077,7 +1093,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			// if the min relay parent is wrong, candidate A can never become valid, otherwise
 			// if only the required parent doesnt match, candidate A still a potential candidate
 			if wrongConstraint.MinRelayParentNumber == relayParentBInfo.Number {
-				// if A is not a potential candidate, its decendants will also not be added.
+				// if A is not a potential candidate, its descendants will also not be added.
 				require.Equal(t, chain.UnconnectedLen(), 0)
 				err := chain.CanAddCandidateAsPotential(candidateAEntry)
 				require.ErrorIs(t, err, ErrRelayParentNotInScope{
@@ -1092,7 +1108,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				potentials := make([]parachaintypes.CandidateHash, 0)
-				for unconnected := range chain.Unconnected() {
+				for _, unconnected := range chain.unconnected.byCandidateHash {
 					potentials = append(potentials, unconnected.candidateHash)
 				}
 
@@ -1142,7 +1158,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			t.Run(tname, func(t *testing.T) {
 				// iterate over all the depth values
 				for _, depth := range tt.depth {
-					scope, err := NewScopeWithAncestors(
+					scope, err := newScopeWithAncestors(
 						*relayParentCInfo,
 						baseConstraints,
 						nil,
@@ -1151,7 +1167,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 					)
 					require.NoError(t, err)
 
-					chain := NewFragmentChain(scope, NewCandidateStorage())
+					chain := newFragmentChain(scope, newCandidateStorage())
 					// individually each candidate is a potential candidate
 					require.NoError(t, chain.CanAddCandidateAsPotential(candidateAEntry))
 					require.NoError(t, chain.CanAddCandidateAsPotential(candidateBEntry))
@@ -1162,7 +1178,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 
 					// Check that the unconnected candidates are as expected
 					unconnectedHashes := make(map[parachaintypes.CandidateHash]struct{})
-					for unconnected := range chain.Unconnected() {
+					for _, unconnected := range chain.unconnected.byCandidateHash {
 						unconnectedHashes[unconnected.candidateHash] = struct{}{}
 					}
 
@@ -1176,11 +1192,11 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		// candidate A has a relay parent out of scope. Candidates B and C
 		// will also be deleted since they form a chain with A
 		t.Run("candidate_A_relay_parent_out_of_scope", func(t *testing.T) {
-			newAncestors := []inclusionemulator.RelayChainBlockInfo{
+			newAncestors := []RelayChainBlockInfo{
 				*relayParentBInfo,
 			}
 
-			scope, err := NewScopeWithAncestors(
+			scope, err := newScopeWithAncestors(
 				*relayParentCInfo,
 				baseConstraints,
 				nil,
@@ -1204,7 +1220,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		})
 
 		t.Run("candidate_A_and_B_out_of_scope_C_still_potential", func(t *testing.T) {
-			scope, err := NewScopeWithAncestors(
+			scope, err := newScopeWithAncestors(
 				*relayParentCInfo,
 				baseConstraints,
 				nil,
@@ -1245,9 +1261,9 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			uint32(relayParentCInfo.Number),
 		)
 
-		_, wrongCandidateCEntry := hashAndInsertCandididate(t, modifiedStorage, wrongCandidateC, wrongPvdC, Backed)
+		_, wrongCandidateCEntry := hashAndInsertCandididate(t, modifiedStorage, wrongCandidateC, wrongPvdC, backed)
 
-		scope, err := NewScopeWithAncestors(
+		scope, err := newScopeWithAncestors(
 			*relayParentCInfo,
 			baseConstraints,
 			nil,
@@ -1264,7 +1280,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		require.ErrorIs(t, err, ErrCycle)
 
 		// However, if taken independently, C still has potential, since we don't know A and B.
-		chain = NewFragmentChain(scope, NewCandidateStorage())
+		chain = newFragmentChain(scope, newCandidateStorage())
 		require.NoError(t, chain.CanAddCandidateAsPotential(wrongCandidateCEntry))
 	})
 
@@ -1282,9 +1298,9 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			0,
 		)
 
-		_, wrongCandidateCEntry := hashAndInsertCandididate(t, modifiedStorage, wrongCandidateC, wrongPvdC, Backed)
+		_, wrongCandidateCEntry := hashAndInsertCandididate(t, modifiedStorage, wrongCandidateC, wrongPvdC, backed)
 
-		scope, err := NewScopeWithAncestors(*relayParentCInfo, baseConstraints, nil, 4, ancestors)
+		scope, err := newScopeWithAncestors(*relayParentCInfo, baseConstraints, nil, 4, ancestors)
 		require.NoError(t, err)
 
 		chain := populateFromPreviousStorage(scope, modifiedStorage)
@@ -1313,9 +1329,9 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		)
 
 		unconnectedCandidateCHash, unconnectedCandidateCEntry := hashAndInsertCandididate(t,
-			modifiedStorage, unconnectedCandidateC, unconnectedCPvd, Backed)
+			modifiedStorage, unconnectedCandidateC, unconnectedCPvd, backed)
 
-		scope, err := NewScopeWithAncestors(
+		scope, err := newScopeWithAncestors(
 			*relayParentCInfo,
 			baseConstraints,
 			nil,
@@ -1324,14 +1340,14 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		chain := NewFragmentChain(scope, NewCandidateStorage())
+		chain := newFragmentChain(scope, newCandidateStorage())
 		require.NoError(t, chain.CanAddCandidateAsPotential(unconnectedCandidateCEntry))
 
 		chain = populateFromPreviousStorage(scope, modifiedStorage)
 		require.Equal(t, []parachaintypes.CandidateHash{candidateAHash, candidateBHash}, chain.BestChainVec())
 
 		unconnected := make(map[parachaintypes.CandidateHash]struct{})
-		for entry := range chain.Unconnected() {
+		for _, entry := range chain.unconnected.byCandidateHash {
 			unconnected[entry.candidateHash] = struct{}{}
 		}
 
@@ -1353,13 +1369,13 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			)
 
 			modifiedCandidateAHash, _ := hashAndInsertCandididate(t,
-				modifiedStorage, modifiedCandidateA, modifiedAPvd, Backed)
+				modifiedStorage, modifiedCandidateA, modifiedAPvd, backed)
 
-			scope, err := NewScopeWithAncestors(
+			scope, err := newScopeWithAncestors(
 				*relayParentCInfo,
 				baseConstraints,
-				[]*PendindAvailability{
-					{CandidateHash: modifiedCandidateAHash, RelayParent: *relayParentBInfo},
+				[]*pendingAvailability{
+					{candidateHash: modifiedCandidateAHash, relayParent: *relayParentBInfo},
 				},
 				4,
 				ancestors,
@@ -1392,7 +1408,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		)
 
 		modifiedCandidateAHash, _ := hashAndInsertCandididate(t,
-			modifiedStorage, modifiedCandidateA, modifiedAPvd, Backed)
+			modifiedStorage, modifiedCandidateA, modifiedAPvd, backed)
 
 		wrongCandidateCHead := parachaintypes.HeadData{Data: []byte{0x01}}
 		wrongPvdC, wrongCandidateC := makeCommittedCandidate(t, paraID,
@@ -1403,19 +1419,19 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		)
 
 		wrongCandidateCHash, wrongCandidateCEntry := hashAndInsertCandididate(t,
-			modifiedStorage, wrongCandidateC, wrongPvdC, Backed)
+			modifiedStorage, wrongCandidateC, wrongPvdC, backed)
 
 		// does not matter if the fork selection rule picks the new candidate
 		// as the modified candidate A is pending availability
 		require.Equal(t, -1, forkSelectionRule(wrongCandidateCHash, modifiedCandidateAHash))
 
-		scope, err := NewScopeWithAncestors(
+		scope, err := newScopeWithAncestors(
 			*relayParentCInfo,
 			baseConstraints,
-			[]*PendindAvailability{
+			[]*pendingAvailability{
 				{
-					CandidateHash: modifiedCandidateAHash,
-					RelayParent:   *relayParentBInfo,
+					candidateHash: modifiedCandidateAHash,
+					relayParent:   *relayParentBInfo,
 				},
 			},
 			4,
@@ -1431,23 +1447,23 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 	})
 
 	t.Run("multiple_pending_availability_candidates", func(t *testing.T) {
-		validOptions := [][]*PendindAvailability{
+		validOptions := [][]*pendingAvailability{
 			{
-				{CandidateHash: candidateAHash, RelayParent: *relayParentAInfo},
+				{candidateHash: candidateAHash, relayParent: *relayParentAInfo},
 			},
 			{
-				{CandidateHash: candidateAHash, RelayParent: *relayParentAInfo},
-				{CandidateHash: candidateBHash, RelayParent: *relayParentBInfo},
+				{candidateHash: candidateAHash, relayParent: *relayParentAInfo},
+				{candidateHash: candidateBHash, relayParent: *relayParentBInfo},
 			},
 			{
-				{CandidateHash: candidateAHash, RelayParent: *relayParentAInfo},
-				{CandidateHash: candidateBHash, RelayParent: *relayParentBInfo},
-				{CandidateHash: candidateCHash, RelayParent: *relayParentCInfo},
+				{candidateHash: candidateAHash, relayParent: *relayParentAInfo},
+				{candidateHash: candidateBHash, relayParent: *relayParentBInfo},
+				{candidateHash: candidateCHash, relayParent: *relayParentCInfo},
 			},
 		}
 
 		for _, pending := range validOptions {
-			scope, err := NewScopeWithAncestors(
+			scope, err := newScopeWithAncestors(
 				*relayParentCInfo,
 				baseConstraints,
 				pending,
@@ -1463,15 +1479,15 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 	})
 
 	t.Run("relay_parents_of_pending_availability_candidates_can_be_out_of_scope", func(t *testing.T) {
-		ancestorsWithoutA := []inclusionemulator.RelayChainBlockInfo{
+		ancestorsWithoutA := []RelayChainBlockInfo{
 			*relayParentBInfo,
 		}
 
-		scope, err := NewScopeWithAncestors(
+		scope, err := newScopeWithAncestors(
 			*relayParentCInfo,
 			baseConstraints,
-			[]*PendindAvailability{
-				{CandidateHash: candidateAHash, RelayParent: *relayParentAInfo},
+			[]*pendingAvailability{
+				{candidateHash: candidateAHash, relayParent: *relayParentAInfo},
 			},
 			4,
 			ancestorsWithoutA,
@@ -1484,21 +1500,21 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 	})
 
 	t.Run("relay_parents_of_pending_availability_candidates_cannot_move_backwards", func(t *testing.T) {
-		scope, err := NewScopeWithAncestors(
+		scope, err := newScopeWithAncestors(
 			*relayParentCInfo,
 			baseConstraints,
-			[]*PendindAvailability{
+			[]*pendingAvailability{
 				{
-					CandidateHash: candidateAHash,
-					RelayParent: inclusionemulator.RelayChainBlockInfo{
+					candidateHash: candidateAHash,
+					relayParent: RelayChainBlockInfo{
 						Hash:        relayParentAInfo.Hash,
 						Number:      1,
 						StorageRoot: relayParentAInfo.StorageRoot,
 					},
 				},
 				{
-					CandidateHash: candidateBHash,
-					RelayParent: inclusionemulator.RelayChainBlockInfo{
+					candidateHash: candidateBHash,
+					relayParent: RelayChainBlockInfo{
 						Hash:        relayParentBInfo.Hash,
 						Number:      0,
 						StorageRoot: relayParentBInfo.StorageRoot,
@@ -1506,7 +1522,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 				},
 			},
 			4,
-			[]inclusionemulator.RelayChainBlockInfo{},
+			[]RelayChainBlockInfo{},
 		)
 		require.NoError(t, err)
 
@@ -1516,7 +1532,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 	})
 
 	t.Run("more_complex_case_with_multiple_candidates_and_constraints", func(t *testing.T) {
-		scope, err := NewScopeWithAncestors(
+		scope, err := newScopeWithAncestors(
 			*relayParentCInfo,
 			baseConstraints,
 			nil,
@@ -1533,7 +1549,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			candidateDParaHead,
 			uint32(relayParentCInfo.Number),
 		)
-		candidateDHash, candidateDEntry := hashAndGetEntry(t, candidateD, pvdD, Backed)
+		candidateDHash, candidateDEntry := hashAndGetEntry(t, candidateD, pvdD, backed)
 		require.NoError(t, populateFromPreviousStorage(scope, storage).
 			CanAddCandidateAsPotential(candidateDEntry))
 		require.NoError(t, storage.addCandidateEntry(candidateDEntry))
@@ -1547,7 +1563,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			candidateFParaHead,
 			1000,
 		)
-		candidateFHash, candidateFEntry := hashAndGetEntry(t, candidateF, pvdF, Seconded)
+		candidateFHash, candidateFEntry := hashAndGetEntry(t, candidateF, pvdF, seconded)
 		require.NoError(t, populateFromPreviousStorage(scope, storage).
 			CanAddCandidateAsPotential(candidateFEntry))
 		require.NoError(t, storage.addCandidateEntry(candidateFEntry))
@@ -1559,7 +1575,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			parachaintypes.HeadData{Data: []byte{0xb1}},
 			uint32(relayParentAInfo.Number),
 		)
-		candidateA1Hash, candidateA1Entry := hashAndGetEntry(t, candidateA1, pvdA1, Backed)
+		candidateA1Hash, candidateA1Entry := hashAndGetEntry(t, candidateA1, pvdA1, backed)
 
 		// candidate A1 is created so that its hash is greater than the candidate A hash.
 		require.Equal(t, -1, forkSelectionRule(candidateAHash, candidateA1Hash))
@@ -1576,7 +1592,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			parachaintypes.HeadData{Data: []byte{0xc1}},
 			uint32(relayParentAInfo.Number),
 		)
-		_, candidateB1Entry := hashAndGetEntry(t, candidateB1, pvdB1, Seconded)
+		_, candidateB1Entry := hashAndGetEntry(t, candidateB1, pvdB1, seconded)
 		require.NoError(t, populateFromPreviousStorage(scope, storage).
 			CanAddCandidateAsPotential(candidateB1Entry))
 
@@ -1589,7 +1605,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			parachaintypes.HeadData{Data: []byte{0xd1}},
 			uint32(relayParentAInfo.Number),
 		)
-		_, candidateC1Entry := hashAndGetEntry(t, candidateC1, pvdC1, Backed)
+		_, candidateC1Entry := hashAndGetEntry(t, candidateC1, pvdC1, backed)
 		require.NoError(t, populateFromPreviousStorage(scope, storage).
 			CanAddCandidateAsPotential(candidateC1Entry))
 
@@ -1603,7 +1619,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			uint32(relayParentAInfo.Number),
 		)
 
-		_, candidateC2Entry := hashAndGetEntry(t, candidateC2, pvdC2, Seconded)
+		_, candidateC2Entry := hashAndGetEntry(t, candidateC2, pvdC2, seconded)
 		require.NoError(t, populateFromPreviousStorage(scope, storage).
 			CanAddCandidateAsPotential(candidateC2Entry))
 		require.NoError(t, storage.addCandidateEntry(candidateC2Entry))
@@ -1616,7 +1632,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			candidateA2HeadData,
 			uint32(relayParentAInfo.Number),
 		)
-		candidateA2Hash, candidateA2Entry := hashAndGetEntry(t, candidateA2, pvdA2, Seconded)
+		candidateA2Hash, candidateA2Entry := hashAndGetEntry(t, candidateA2, pvdA2, seconded)
 
 		require.Equal(t, -1, forkSelectionRule(candidateA2Hash, candidateAHash))
 		require.NoError(t, populateFromPreviousStorage(scope, storage).
@@ -1632,7 +1648,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			candidateB2HeadData,
 			uint32(relayParentBInfo.Number),
 		)
-		candidateB2Hash, candidateB2Entry := hashAndGetEntry(t, candidateB2, pvdB2, Backed)
+		candidateB2Hash, candidateB2Entry := hashAndGetEntry(t, candidateB2, pvdB2, backed)
 		require.NoError(t, populateFromPreviousStorage(scope, storage).
 			CanAddCandidateAsPotential(candidateB2Entry))
 
@@ -1642,7 +1658,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		assert.Equal(t, []parachaintypes.CandidateHash{candidateAHash, candidateBHash, candidateCHash}, chain.BestChainVec())
 
 		unconnectedHashes := make(map[parachaintypes.CandidateHash]struct{})
-		for unconnected := range chain.Unconnected() {
+		for _, unconnected := range chain.unconnected.byCandidateHash {
 			unconnectedHashes[unconnected.candidateHash] = struct{}{}
 		}
 
@@ -1655,8 +1671,8 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		assert.Equal(t, expectedUnconnected, unconnectedHashes)
 
 		// Cannot add as potential an already present candidate (whether it's in the best chain or in unconnected storage)
-		assert.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateAEntry), ErrCandidateAlradyKnown)
-		assert.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateFEntry), ErrCandidateAlradyKnown)
+		assert.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateAEntry), ErrCandidateAlreadyKnown)
+		assert.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateFEntry), ErrCandidateAlreadyKnown)
 
 		t.Run("simulate_best_chain_reorg", func(t *testing.T) {
 			// back a2, the reversion should happen at the root.
@@ -1667,7 +1683,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 
 			// candidate F is kept as it was truly unconnected. The rest will be trimmed
 			unconnected := map[parachaintypes.CandidateHash]struct{}{}
-			for entry := range chain.Unconnected() {
+			for _, entry := range chain.unconnected.byCandidateHash {
 				unconnected[entry.candidateHash] = struct{}{}
 			}
 
@@ -1699,7 +1715,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 				uint32(relayParentBInfo.Number),
 			)
 
-			candidateC3Hash, candidateC3Entry := hashAndGetEntry(t, candidateC3, candidateC3Pvd, Seconded)
+			candidateC3Hash, candidateC3Entry := hashAndGetEntry(t, candidateC3, candidateC3Pvd, seconded)
 
 			// candidate c4
 			candidateC4HeadData := parachaintypes.HeadData{Data: []byte{0xc3}}
@@ -1710,7 +1726,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 				uint32(relayParentBInfo.Number),
 			)
 
-			candidateC4Hash, candidateC4Entry := hashAndGetEntry(t, candidateC4, candidateC4Pvd, Seconded)
+			candidateC4Hash, candidateC4Entry := hashAndGetEntry(t, candidateC4, candidateC4Pvd, seconded)
 
 			// c4 should have a lower candidate hash than c3
 			require.Equal(t, -1, forkSelectionRule(candidateC4Hash, candidateC3Hash))
@@ -1749,7 +1765,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			}, chain.BestChainVec())
 
 			unconnected := make(map[parachaintypes.CandidateHash]struct{})
-			for entry := range chain.Unconnected() {
+			for _, entry := range chain.unconnected.byCandidateHash {
 				unconnected[entry.candidateHash] = struct{}{}
 			}
 
@@ -1768,12 +1784,12 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			uint32(relayParentCInfo.Number),
 		)
 
-		candidateEHash, _ := hashAndInsertCandididate(t, storage, candidateE, candidateEPvd, Seconded)
+		candidateEHash, _ := hashAndInsertCandididate(t, storage, candidateE, candidateEPvd, seconded)
 		chain = populateFromPreviousStorage(scope, storage)
 		require.Equal(t, []parachaintypes.CandidateHash{candidateAHash, candidateBHash, candidateCHash}, chain.BestChainVec())
 
 		unconnected := make(map[parachaintypes.CandidateHash]struct{})
-		for entry := range chain.Unconnected() {
+		for _, entry := range chain.unconnected.byCandidateHash {
 			unconnected[entry.candidateHash] = struct{}{}
 		}
 		require.Equal(t, map[parachaintypes.CandidateHash]struct{}{
@@ -1785,12 +1801,12 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		}, unconnected)
 
 		t.Run("simulate_candidates_A_B_C_are_pending_availability", func(t *testing.T) {
-			scope, err := NewScopeWithAncestors(
+			scope, err := newScopeWithAncestors(
 				*relayParentCInfo, baseConstraints.Clone(),
-				[]*PendindAvailability{
-					{CandidateHash: candidateAHash, RelayParent: *relayParentAInfo},
-					{CandidateHash: candidateBHash, RelayParent: *relayParentBInfo},
-					{CandidateHash: candidateCHash, RelayParent: *relayParentCInfo},
+				[]*pendingAvailability{
+					{candidateHash: candidateAHash, relayParent: *relayParentAInfo},
+					{candidateHash: candidateBHash, relayParent: *relayParentBInfo},
+					{candidateHash: candidateCHash, relayParent: *relayParentCInfo},
 				},
 				2,
 				ancestors,
@@ -1799,10 +1815,12 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 
 			// candidates A2, B2 will now be trimmed
 			chain := populateFromPreviousStorage(scope, storage)
-			require.Equal(t, []parachaintypes.CandidateHash{candidateAHash, candidateBHash, candidateCHash}, chain.BestChainVec())
+			require.Equal(t,
+				[]parachaintypes.CandidateHash{candidateAHash, candidateBHash, candidateCHash},
+				chain.BestChainVec())
 
 			unconnectedHashes := make(map[parachaintypes.CandidateHash]struct{})
-			for unconnected := range chain.Unconnected() {
+			for _, unconnected := range chain.unconnected.byCandidateHash {
 				unconnectedHashes[unconnected.candidateHash] = struct{}{}
 			}
 
@@ -1813,20 +1831,20 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			}, unconnectedHashes)
 
 			// cannot add as potential an already pending availability candidate
-			require.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateAEntry), ErrCandidateAlradyKnown)
+			require.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateAEntry), ErrCandidateAlreadyKnown)
 
 			// simulate the fact that candidate A, B and C have been included
 			baseConstraints := makeConstraints(0, []uint{0}, parachaintypes.HeadData{Data: []byte{0x0d}})
-			scope, err = NewScopeWithAncestors(*relayParentCInfo, baseConstraints, nil, 2, ancestors)
+			scope, err = newScopeWithAncestors(*relayParentCInfo, baseConstraints, nil, 2, ancestors)
 			require.NoError(t, err)
 
 			prevChain := chain
-			chain = NewFragmentChain(scope, NewCandidateStorage())
+			chain = newFragmentChain(scope, newCandidateStorage())
 			chain.PopulateFromPrevious(prevChain)
 			require.Equal(t, []parachaintypes.CandidateHash{candidateDHash}, chain.BestChainVec())
 
 			unconnectedHashes = make(map[parachaintypes.CandidateHash]struct{})
-			for unconnected := range chain.Unconnected() {
+			for _, unconnected := range chain.unconnected.byCandidateHash {
 				unconnectedHashes[unconnected.candidateHash] = struct{}{}
 			}
 
@@ -1842,8 +1860,8 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			require.Zero(t, chain.UnconnectedLen())
 
 			var expectedErr error = &ErrCheckAgainstConstraints{
-				fragmentValidityErr: &inclusionemulator.ErrOutputsInvalid{
-					ModificationError: &inclusionemulator.ErrDisallowedHrmpWatermark{
+				fragmentValidityErr: &ErrOutputsInvalid{
+					ModificationError: &ErrDisallowedHrmpWatermark{
 						BlockNumber: 1000,
 					},
 				},
@@ -1858,15 +1876,15 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 	})
 }
 
-func cloneFragmentChain(original *FragmentChain) *FragmentChain {
+func cloneFragmentChain(original *fragmentChain) *fragmentChain {
 	// Clone the scope
-	clonedScope := &Scope{
+	clonedScope := &scope{
 		relayParent:         original.scope.relayParent,
 		baseConstraints:     original.scope.baseConstraints.Clone(),
-		pendindAvailability: append([]*PendindAvailability(nil), original.scope.pendindAvailability...),
+		pendingAvailability: append([]*pendingAvailability(nil), original.scope.pendingAvailability...),
 		maxDepth:            original.scope.maxDepth,
 		ancestors:           original.scope.ancestors.Copy(),
-		ancestorsByHash:     make(map[common.Hash]inclusionemulator.RelayChainBlockInfo),
+		ancestorsByHash:     make(map[common.Hash]RelayChainBlockInfo),
 	}
 
 	for k, v := range original.scope.ancestorsByHash {
@@ -1874,9 +1892,9 @@ func cloneFragmentChain(original *FragmentChain) *FragmentChain {
 	}
 
 	// Clone the best chain
-	clonedBestChain := NewBackedChain()
+	clonedBestChain := newBackedChain()
 	for _, node := range original.bestChain.chain {
-		clonedNode := &FragmentNode{
+		clonedNode := &fragmentNode{
 			fragment:                node.fragment,
 			candidateHash:           node.candidateHash,
 			parentHeadDataHash:      node.parentHeadDataHash,
@@ -1890,7 +1908,7 @@ func cloneFragmentChain(original *FragmentChain) *FragmentChain {
 	clonedUnconnected := original.unconnected.Clone()
 
 	// Create the cloned fragment chain
-	clonedFragmentChain := &FragmentChain{
+	clonedFragmentChain := &fragmentChain{
 		scope:       clonedScope,
 		bestChain:   clonedBestChain,
 		unconnected: clonedUnconnected,
@@ -1907,27 +1925,27 @@ func TestFindAncestorPathAndFindBackableChainEmptyBestChain(t *testing.T) {
 	// Empty chain
 	baseConstraints := makeConstraints(0, []uint{0}, requiredParent)
 
-	relayParentInfo := inclusionemulator.RelayChainBlockInfo{
+	relayParentInfo := RelayChainBlockInfo{
 		Number:      0,
 		Hash:        relayParent,
 		StorageRoot: common.Hash{},
 	}
 
-	scope, err := NewScopeWithAncestors(relayParentInfo, baseConstraints, nil, maxDepth, nil)
+	scope, err := newScopeWithAncestors(relayParentInfo, baseConstraints, nil, maxDepth, nil)
 	require.NoError(t, err)
 
-	chain := NewFragmentChain(scope, NewCandidateStorage())
+	chain := newFragmentChain(scope, newCandidateStorage())
 	assert.Equal(t, 0, chain.BestChainLen())
 
 	assert.Equal(t, 0, chain.findAncestorPath(map[parachaintypes.CandidateHash]struct{}{}))
-	assert.Equal(t, []*CandidateAndRelayParent{}, chain.FindBackableChain(map[parachaintypes.CandidateHash]struct{}{}, 2))
+	assert.Equal(t, []*candidateAndRelayParent{}, chain.FindBackableChain(map[parachaintypes.CandidateHash]struct{}{}, 2))
 
 	// Invalid candidate
 	ancestors := map[parachaintypes.CandidateHash]struct{}{
 		{Value: common.Hash{}}: {},
 	}
 	assert.Equal(t, 0, chain.findAncestorPath(ancestors))
-	assert.Equal(t, []*CandidateAndRelayParent{}, chain.FindBackableChain(ancestors, 2))
+	assert.Equal(t, []*candidateAndRelayParent{}, chain.FindBackableChain(ancestors, 2))
 }
 
 func TestFindAncestorPathAndFindBackableChain(t *testing.T) {
@@ -1960,13 +1978,13 @@ func TestFindAncestorPathAndFindBackableChain(t *testing.T) {
 		candidates = append(candidates, &CandidateAndPVD{candidate: candidate, pvd: candidatePvd})
 	}
 
-	storage := NewCandidateStorage()
+	storage := newCandidateStorage()
 
 	for _, c := range candidates {
 		candidateHash, err := c.candidate.Hash()
 		require.NoError(t, err)
 
-		entry, err := NewCandidateEntry(parachaintypes.CandidateHash{Value: candidateHash}, c.candidate, c.pvd, Seconded)
+		entry, err := newCandidateEntry(parachaintypes.CandidateHash{Value: candidateHash}, c.candidate, c.pvd, seconded)
 		require.NoError(t, err)
 
 		err = storage.addCandidateEntry(entry)
@@ -1982,27 +2000,27 @@ func TestFindAncestorPathAndFindBackableChain(t *testing.T) {
 
 	type Ancestors = map[parachaintypes.CandidateHash]struct{}
 
-	hashes := func(from, to uint) []*CandidateAndRelayParent {
-		var output []*CandidateAndRelayParent
+	hashes := func(from, to uint) []*candidateAndRelayParent {
+		var output []*candidateAndRelayParent
 
 		for i := from; i < to; i++ {
-			output = append(output, &CandidateAndRelayParent{
-				CandidateHash:   candidateHashes[i],
-				RealyParentHash: relayParent,
+			output = append(output, &candidateAndRelayParent{
+				candidateHash:   candidateHashes[i],
+				realyParentHash: relayParent,
 			})
 		}
 
 		return output
 	}
 
-	relayParentInfo := inclusionemulator.RelayChainBlockInfo{
+	relayParentInfo := RelayChainBlockInfo{
 		Number:      uint(relayParentNumber),
 		Hash:        relayParent,
 		StorageRoot: relayParentStorageRoot,
 	}
 
 	baseConstraints := makeConstraints(0, []uint{0}, requiredParent)
-	scope, err := NewScopeWithAncestors(
+	scope, err := newScopeWithAncestors(
 		relayParentInfo,
 		baseConstraints,
 		nil,
@@ -2057,14 +2075,14 @@ func TestFindAncestorPathAndFindBackableChain(t *testing.T) {
 		require.Equal(t, 6, chain.BestChainLen())
 
 		for count := 0; count < 10; count++ {
-			var result []*CandidateAndRelayParent
+			var result []*candidateAndRelayParent
 			if count > 6 {
 				result = hashes(0, 6)
 			} else {
 				for i := 0; i < count && i < 6; i++ {
-					result = append(result, &CandidateAndRelayParent{
-						CandidateHash:   candidateHashes[i],
-						RealyParentHash: relayParent,
+					result = append(result, &candidateAndRelayParent{
+						candidateHash:   candidateHashes[i],
+						realyParentHash: relayParent,
 					})
 				}
 			}
@@ -2091,13 +2109,14 @@ func TestFindAncestorPathAndFindBackableChain(t *testing.T) {
 
 		// no ancestors supplied
 		require.Equal(t, 0, chain.findAncestorPath(make(Ancestors)))
-		require.Equal(t, []*CandidateAndRelayParent(nil), chain.FindBackableChain(make(Ancestors), 0))
+		require.Equal(t, []*candidateAndRelayParent(nil), chain.FindBackableChain(make(Ancestors), 0))
 		require.Equal(t, hashes(0, 1), chain.FindBackableChain(make(Ancestors), 1))
 		require.Equal(t, hashes(0, 2), chain.FindBackableChain(make(Ancestors), 2))
 		require.Equal(t, hashes(0, 5), chain.FindBackableChain(make(Ancestors), 5))
 
 		for count := 6; count < 10; count++ {
-			require.Equal(t, hashes(0, 6), chain.FindBackableChain(make(Ancestors), uint32(count)))
+			backableChain := chain.FindBackableChain(make(Ancestors), uint32(count))
+			require.Equal(t, hashes(0, 6), backableChain)
 		}
 
 		// ancestors which is not part of the chain will be ignored
@@ -2159,9 +2178,9 @@ func TestFindAncestorPathAndFindBackableChain(t *testing.T) {
 		require.Equal(t, hashes(0, 0), chain.FindBackableChain(maps.Clone(ancestors), 0))
 
 		// stop when we've found a candidate which is pending availability
-		scope, err := NewScopeWithAncestors(relayParentInfo, baseConstraints,
-			[]*PendindAvailability{
-				{CandidateHash: candidateHashes[3], RelayParent: relayParentInfo},
+		scope, err := newScopeWithAncestors(relayParentInfo, baseConstraints,
+			[]*pendingAvailability{
+				{candidateHash: candidateHashes[3], relayParent: relayParentInfo},
 			},
 			maxDepth,
 			nil,
