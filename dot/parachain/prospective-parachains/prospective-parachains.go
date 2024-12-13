@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	fragmentchain "github.com/ChainSafe/gossamer/dot/parachain/prospective-parachains/fragment-chain"
 	parachaintypes "github.com/ChainSafe/gossamer/dot/parachain/types"
 	"github.com/ChainSafe/gossamer/internal/log"
 	"github.com/ChainSafe/gossamer/lib/common"
@@ -23,7 +22,7 @@ type View struct {
 }
 
 type RelayParentData struct {
-	FragmentChains map[parachaintypes.ParaID]*fragmentchain.FragmentChain
+	FragmentChains map[parachaintypes.ParaID]*fragmentChain
 }
 
 // Name returns the name of the subsystem
@@ -140,8 +139,8 @@ func (pp *ProspectiveParachains) getBackableCandidates(
 	candidateHashes := make([]parachaintypes.CandidateHashAndRelayParent, len(backableCandidates))
 	for i, candidate := range backableCandidates {
 		candidateHashes[i] = parachaintypes.CandidateHashAndRelayParent{
-			CandidateHash:        candidate.CandidateHash,
-			CandidateRelayParent: candidate.RealyParentHash,
+			CandidateHash:        candidate.candidateHash,
+			CandidateRelayParent: candidate.realyParentHash,
 		}
 	}
 
