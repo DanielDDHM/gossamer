@@ -6,9 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	fragmentchain "github.com/ChainSafe/gossamer/dot/parachain/prospective-parachains/fragment-chain"
 	parachaintypes "github.com/ChainSafe/gossamer/dot/parachain/types"
-	inclusionemulator "github.com/ChainSafe/gossamer/dot/parachain/util/inclusion-emulator"
 	"github.com/ChainSafe/gossamer/lib/common"
 	"github.com/stretchr/testify/assert"
 )
@@ -101,12 +99,12 @@ func makeCandidate(
 func TestGetMinimumRelayParents(t *testing.T) {
 	// Setup a mock View with active leaves and relay parent data
 
-	mockRelayParent := inclusionemulator.RelayChainBlockInfo{
+	mockRelayParent := RelayChainBlockInfo{
 		Hash:   common.Hash([]byte("active_hash")),
 		Number: 10,
 	}
 
-	ancestors := []inclusionemulator.RelayChainBlockInfo{
+	ancestors := []RelayChainBlockInfo{
 		{
 			Hash:   common.Hash([]byte("active_hash_7")),
 			Number: 9,
@@ -121,14 +119,14 @@ func TestGetMinimumRelayParents(t *testing.T) {
 		},
 	}
 
-	baseConstraints := &inclusionemulator.Constraints{
+	baseConstraints := &parachaintypes.Constraints{
 		MinRelayParentNumber: 5,
 	}
 
-	mockScope, err := fragmentchain.NewScopeWithAncestors(mockRelayParent, baseConstraints, nil, 10, ancestors)
+	mockScope, err := newScopeWithAncestors(mockRelayParent, baseConstraints, nil, 10, ancestors)
 	assert.NoError(t, err)
 
-	mockScope2, err := fragmentchain.NewScopeWithAncestors(mockRelayParent, baseConstraints, nil, 10, nil)
+	mockScope2, err := newScopeWithAncestors(mockRelayParent, baseConstraints, nil, 10, nil)
 	assert.NoError(t, err)
 
 	mockView := &View{
@@ -137,9 +135,9 @@ func TestGetMinimumRelayParents(t *testing.T) {
 		},
 		PerRelayParent: map[common.Hash]*RelayParentData{
 			common.BytesToHash([]byte("active_hash")): {
-				fragmentChains: map[parachaintypes.ParaID]*fragmentchain.FragmentChain{
-					parachaintypes.ParaID(1): fragmentchain.NewFragmentChain(mockScope, fragmentchain.NewCandidateStorage()),
-					parachaintypes.ParaID(2): fragmentchain.NewFragmentChain(mockScope2, fragmentchain.NewCandidateStorage()),
+				fragmentChains: map[parachaintypes.ParaID]*fragmentChain{
+					parachaintypes.ParaID(1): newFragmentChain(mockScope, newCandidateStorage()),
+					parachaintypes.ParaID(2): newFragmentChain(mockScope2, newCandidateStorage()),
 				},
 			},
 		},
@@ -221,25 +219,25 @@ func TestProspectiveParachains_HandleMinimumRelayParents(t *testing.T) {
 
 	prospectiveParachains := NewProspectiveParachains(subsystemToOverseer)
 
-	relayParent := inclusionemulator.RelayChainBlockInfo{
+	relayParent := RelayChainBlockInfo{
 		Hash:        candidateRelayParent,
 		Number:      0,
 		StorageRoot: common.Hash{0x00},
 	}
 
-	baseConstraints := &inclusionemulator.Constraints{
+	baseConstraints := &parachaintypes.Constraints{
 		RequiredParent:       parachaintypes.HeadData{Data: bytes.Repeat([]byte{0x01}, 32)},
 		MinRelayParentNumber: 0,
 		ValidationCodeHash:   validationCodeHash,
 		MaxPoVSize:           1000000,
 	}
 
-	scope, err := fragmentchain.NewScopeWithAncestors(relayParent, baseConstraints, nil, 10, nil)
+	scope, err := newScopeWithAncestors(relayParent, baseConstraints, nil, 10, nil)
 	assert.NoError(t, err)
 
 	prospectiveParachains.View.PerRelayParent[candidateRelayParent] = &RelayParentData{
-		fragmentChains: map[parachaintypes.ParaID]*fragmentchain.FragmentChain{
-			paraId: fragmentchain.NewFragmentChain(scope, fragmentchain.NewCandidateStorage()),
+		fragmentChains: map[parachaintypes.ParaID]*fragmentChain{
+			paraId: newFragmentChain(scope, newCandidateStorage()),
 		},
 	}
 	ctx, cancel := context.WithCancel(context.Background())
