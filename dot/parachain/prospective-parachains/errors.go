@@ -9,73 +9,73 @@ import (
 )
 
 var (
-	ErrCandidateAlreadyKnown           = errors.New("candidate already known")
-	ErrZeroLengthCycle                 = errors.New("candidate's parent head is equal to its output head. Would introduce a cycle") //nolint:lll
-	ErrCycle                           = errors.New("candidate would introduce a cycle")
-	ErrMultiplePaths                   = errors.New("candidate would introduce two paths to the same output state")
-	ErrIntroduceBackedCandidate        = errors.New("attempting to directly introduce a Backed candidate. It should first be introduced as Seconded") //nolint:lll
-	ErrParentCandidateNotFound         = errors.New("could not find parent of the candidate")
-	ErrRelayParentMovedBackwards       = errors.New("relay parent would move backwards from the latest candidate in the chain")     //nolint:lll
-	ErrPersistedValidationDataMismatch = errors.New("candidate does not match the persisted validation data provided alongside it") //nolint:lll
+	errCandidateAlreadyKnown           = errors.New("candidate already known")
+	errZeroLengthCycle                 = errors.New("candidate's parent head is equal to its output head. Would introduce a cycle") //nolint:lll
+	errCycle                           = errors.New("candidate would introduce a cycle")
+	errMultiplePaths                   = errors.New("candidate would introduce two paths to the same output state")
+	errIntroduceBackedCandidate        = errors.New("attempting to directly introduce a Backed candidate. It should first be introduced as Seconded") //nolint:lll
+	errParentCandidateNotFound         = errors.New("could not find parent of the candidate")
+	errRelayParentMovedBackwards       = errors.New("relay parent would move backwards from the latest candidate in the chain")     //nolint:lll
+	errPersistedValidationDataMismatch = errors.New("candidate does not match the persisted validation data provided alongside it") //nolint:lll
 )
 
-type ErrRelayParentPrecedesCandidatePendingAvailability struct {
+type errRelayParentPrecedesCandidatePendingAvailability struct {
 	relayParentA, relayParentB common.Hash
 }
 
-func (e ErrRelayParentPrecedesCandidatePendingAvailability) Error() string {
+func (e errRelayParentPrecedesCandidatePendingAvailability) Error() string {
 	return fmt.Sprintf("relay parent %x of the candidate precedes the relay parent %x of a pending availability candidate",
 		e.relayParentA, e.relayParentB)
 }
 
-type ErrForkWithCandidatePendingAvailability struct {
+type errForkWithCandidatePendingAvailability struct {
 	candidateHash parachaintypes.CandidateHash
 }
 
-func (e ErrForkWithCandidatePendingAvailability) Error() string {
+func (e errForkWithCandidatePendingAvailability) Error() string {
 	return fmt.Sprintf("candidate would introduce a fork with a pending availability candidate: %x", e.candidateHash.Value)
 }
 
-type ErrForkChoiceRule struct {
+type errForkChoiceRule struct {
 	candidateHash parachaintypes.CandidateHash
 }
 
-func (e ErrForkChoiceRule) Error() string {
+func (e errForkChoiceRule) Error() string {
 	return fmt.Sprintf("fork selection rule favours another candidate: %x", e.candidateHash.Value)
 }
 
-type ErrComputeConstraints struct {
+type errComputeConstraints struct {
 	modificationErr error
 }
 
-func (e ErrComputeConstraints) Error() string {
+func (e errComputeConstraints) Error() string {
 	return fmt.Sprintf("could not compute candidate constraints: %s", e.modificationErr)
 }
 
-type ErrCheckAgainstConstraints struct {
+type errCheckAgainstConstraints struct {
 	fragmentValidityErr error
 }
 
-func (e ErrCheckAgainstConstraints) Error() string {
+func (e errCheckAgainstConstraints) Error() string {
 	return fmt.Sprintf("candidate violates constraints: %s", e.fragmentValidityErr)
 }
 
-type ErrRelayParentNotInScope struct {
+type errRelayParentNotInScope struct {
 	relayParentA, relayParentB common.Hash
 }
 
-func (e ErrRelayParentNotInScope) Error() string {
+func (e errRelayParentNotInScope) Error() string {
 	return fmt.Sprintf("relay parent %s not in scope, earliest relay parent allowed %s",
 		e.relayParentA.String(), e.relayParentB.String())
 }
 
-type ErrUnexpectedAncestor struct {
+type errUnexpectedAncestor struct {
 	// The block number that this error occurred at
 	Number uint
 	// The previous seen block number, which did not match `number`.
 	Prev uint
 }
 
-func (e ErrUnexpectedAncestor) Error() string {
+func (e errUnexpectedAncestor) Error() string {
 	return fmt.Sprintf("unexpected ancestor %d, expected %d", e.Number, e.Prev)
 }

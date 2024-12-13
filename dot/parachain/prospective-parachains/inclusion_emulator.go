@@ -575,7 +575,7 @@ func validateAgainstConstraints(
 
 	if !expectedPVD.Equal(persistedValidationData) {
 		return fmt.Errorf("%w, expected: %v, got: %v",
-			ErrPersistedValidationDataMismatch, expectedPVD, persistedValidationData)
+			errPersistedValidationDataMismatch, expectedPVD, persistedValidationData)
 	}
 
 	if constraints.ValidationCodeHash != validationCodeHash {

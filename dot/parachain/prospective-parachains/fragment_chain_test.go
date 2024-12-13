@@ -588,7 +588,7 @@ func TestScopeRejectsAncestors(t *testing.T) {
 			baseConstraints: makeConstraints(8, []uint{8, 9},
 				parachaintypes.HeadData{Data: []byte{0x01, 0x02, 0x03}}),
 			pendingAvailability: make([]*pendingAvailability, 0),
-			expectedError:       ErrUnexpectedAncestor{Number: 8, Prev: 10},
+			expectedError:       errUnexpectedAncestor{Number: 8, Prev: 10},
 		},
 		"rejects_ancestor_for_zero_block": {
 			relayParent: &RelayChainBlockInfo{
@@ -606,7 +606,7 @@ func TestScopeRejectsAncestors(t *testing.T) {
 			maxDepth:            2,
 			baseConstraints:     makeConstraints(0, []uint{}, parachaintypes.HeadData{Data: []byte{1, 2, 3}}),
 			pendingAvailability: make([]*pendingAvailability, 0),
-			expectedError:       ErrUnexpectedAncestor{Number: 99999, Prev: 0},
+			expectedError:       errUnexpectedAncestor{Number: 99999, Prev: 0},
 		},
 		"rejects_unordered_ancestors": {
 			relayParent: &RelayChainBlockInfo{
@@ -634,7 +634,7 @@ func TestScopeRejectsAncestors(t *testing.T) {
 			maxDepth:            2,
 			baseConstraints:     makeConstraints(0, []uint{2}, parachaintypes.HeadData{Data: []byte{1, 2, 3}}),
 			pendingAvailability: make([]*pendingAvailability, 0),
-			expectedError:       ErrUnexpectedAncestor{Number: 2, Prev: 4},
+			expectedError:       errUnexpectedAncestor{Number: 2, Prev: 4},
 		},
 	}
 
@@ -715,7 +715,7 @@ func TestCandidateStorageMethods(t *testing.T) {
 
 				entry, err := newCandidateEntry(parachaintypes.CandidateHash{Value: candidateHash},
 					candidate, wrongPvd, seconded)
-				require.ErrorIs(t, err, ErrPersistedValidationDataMismatch)
+				require.ErrorIs(t, err, errPersistedValidationDataMismatch)
 				require.Nil(t, entry)
 			},
 		},
@@ -747,7 +747,7 @@ func TestCandidateStorageMethods(t *testing.T) {
 				entry, err := newCandidateEntry(parachaintypes.CandidateHash{Value: candidateHash},
 					candidate, pvd, seconded)
 				require.Nil(t, entry)
-				require.ErrorIs(t, err, ErrZeroLengthCycle)
+				require.ErrorIs(t, err, errZeroLengthCycle)
 			},
 		},
 
@@ -794,7 +794,7 @@ func TestCandidateStorageMethods(t *testing.T) {
 
 					// re-add the candidate should fail
 					err = storage.addCandidateEntry(entry)
-					require.ErrorIs(t, err, ErrCandidateAlreadyKnown)
+					require.ErrorIs(t, err, errCandidateAlreadyKnown)
 				})
 
 				t.Run("mark_candidate_entry_as_backed", func(t *testing.T) {
@@ -1096,7 +1096,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 				// if A is not a potential candidate, its descendants will also not be added.
 				require.Equal(t, chain.UnconnectedLen(), 0)
 				err := chain.CanAddCandidateAsPotential(candidateAEntry)
-				require.ErrorIs(t, err, ErrRelayParentNotInScope{
+				require.ErrorIs(t, err, errRelayParentNotInScope{
 					relayParentA: relayParentAHash, // candidate A has relay parent A
 					relayParentB: relayParentBHash, // while the constraint is expecting at least relay parent B
 				})
@@ -1209,7 +1209,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			require.Equal(t, 0, chain.UnconnectedLen())
 
 			require.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateAEntry),
-				ErrRelayParentNotInScope{
+				errRelayParentNotInScope{
 					relayParentA: relayParentAHash,
 					relayParentB: relayParentBHash,
 				})
@@ -1233,14 +1233,14 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			require.Equal(t, 0, chain.UnconnectedLen())
 
 			require.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateAEntry),
-				ErrRelayParentNotInScope{
+				errRelayParentNotInScope{
 					relayParentA: relayParentAHash,
 					relayParentB: relayParentCHash,
 				})
 
 			// however if taken indepently, both B and C still have potential
 			require.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateBEntry),
-				ErrRelayParentNotInScope{
+				errRelayParentNotInScope{
 					relayParentA: relayParentBHash,
 					relayParentB: relayParentCHash,
 				})
@@ -1277,7 +1277,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		require.Equal(t, 0, chain.UnconnectedLen())
 
 		err = chain.CanAddCandidateAsPotential(wrongCandidateCEntry)
-		require.ErrorIs(t, err, ErrCycle)
+		require.ErrorIs(t, err, errCycle)
 
 		// However, if taken independently, C still has potential, since we don't know A and B.
 		chain = newFragmentChain(scope, newCandidateStorage())
@@ -1307,7 +1307,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		require.Equal(t, []parachaintypes.CandidateHash{candidateAHash, candidateBHash}, chain.BestChainVec())
 		require.Equal(t, 0, chain.UnconnectedLen())
 
-		require.ErrorIs(t, chain.CanAddCandidateAsPotential(wrongCandidateCEntry), ErrRelayParentMovedBackwards)
+		require.ErrorIs(t, chain.CanAddCandidateAsPotential(wrongCandidateCEntry), errRelayParentMovedBackwards)
 	})
 
 	t.Run("unconnected_candidate_C", func(t *testing.T) {
@@ -1388,7 +1388,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 
 			require.ErrorIs(t,
 				chain.CanAddCandidateAsPotential(unconnectedCandidateCEntry),
-				ErrRelayParentPrecedesCandidatePendingAvailability{
+				errRelayParentPrecedesCandidatePendingAvailability{
 					relayParentA: relayParentAHash,
 					relayParentB: relayParentBHash,
 				})
@@ -1441,7 +1441,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		chain := populateFromPreviousStorage(scope, modifiedStorage)
 		require.Equal(t, []parachaintypes.CandidateHash{modifiedCandidateAHash, candidateBHash}, chain.BestChainVec())
 		require.Equal(t, 0, chain.UnconnectedLen())
-		require.ErrorIs(t, chain.CanAddCandidateAsPotential(wrongCandidateCEntry), ErrForkWithCandidatePendingAvailability{
+		require.ErrorIs(t, chain.CanAddCandidateAsPotential(wrongCandidateCEntry), errForkWithCandidatePendingAvailability{
 			candidateHash: modifiedCandidateAHash,
 		})
 	})
@@ -1581,7 +1581,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		require.Equal(t, -1, forkSelectionRule(candidateAHash, candidateA1Hash))
 		require.ErrorIs(t, populateFromPreviousStorage(scope, storage).
 			CanAddCandidateAsPotential(candidateA1Entry),
-			ErrForkChoiceRule{candidateHash: candidateAHash})
+			errForkChoiceRule{candidateHash: candidateAHash})
 
 		require.NoError(t, storage.addCandidateEntry(candidateA1Entry))
 
@@ -1671,8 +1671,8 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 		assert.Equal(t, expectedUnconnected, unconnectedHashes)
 
 		// Cannot add as potential an already present candidate (whether it's in the best chain or in unconnected storage)
-		assert.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateAEntry), ErrCandidateAlreadyKnown)
-		assert.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateFEntry), ErrCandidateAlreadyKnown)
+		assert.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateAEntry), errCandidateAlreadyKnown)
+		assert.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateFEntry), errCandidateAlreadyKnown)
 
 		t.Run("simulate_best_chain_reorg", func(t *testing.T) {
 			// back a2, the reversion should happen at the root.
@@ -1692,10 +1692,10 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			}, unconnected)
 
 			// candidates A1 and A will never have potential again
-			require.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateA1Entry), ErrForkChoiceRule{
+			require.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateA1Entry), errForkChoiceRule{
 				candidateHash: candidateA2Hash,
 			})
-			require.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateAEntry), ErrForkChoiceRule{
+			require.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateAEntry), errForkChoiceRule{
 				candidateHash: candidateA2Hash,
 			})
 		})
@@ -1831,7 +1831,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			}, unconnectedHashes)
 
 			// cannot add as potential an already pending availability candidate
-			require.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateAEntry), ErrCandidateAlreadyKnown)
+			require.ErrorIs(t, chain.CanAddCandidateAsPotential(candidateAEntry), errCandidateAlreadyKnown)
 
 			// simulate the fact that candidate A, B and C have been included
 			baseConstraints := makeConstraints(0, []uint{0}, parachaintypes.HeadData{Data: []byte{0x0d}})
@@ -1859,7 +1859,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			require.Equal(t, []parachaintypes.CandidateHash{candidateDHash, candidateEHash}, chain.BestChainVec())
 			require.Zero(t, chain.UnconnectedLen())
 
-			var expectedErr error = &ErrCheckAgainstConstraints{
+			var expectedErr error = &errCheckAgainstConstraints{
 				fragmentValidityErr: &ErrOutputsInvalid{
 					ModificationError: &ErrDisallowedHrmpWatermark{
 						BlockNumber: 1000,
@@ -1867,7 +1867,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 				},
 			}
 
-			errCheckAgainstConstraints := new(ErrCheckAgainstConstraints)
+			errCheckAgainstConstraints := new(errCheckAgainstConstraints)
 			err = chain.CanAddCandidateAsPotential(candidateFEntry)
 
 			require.True(t, errors.As(err, errCheckAgainstConstraints))

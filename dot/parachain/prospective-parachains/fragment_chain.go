@@ -48,7 +48,7 @@ func newCandidateEntry(
 	}
 
 	if pvdHash != candidate.Descriptor.PersistedValidationDataHash {
-		return nil, ErrPersistedValidationDataMismatch
+		return nil, errPersistedValidationDataMismatch
 	}
 
 	parentHeadDataHash, err := persistedValidationData.ParentHead.Hash()
@@ -62,7 +62,7 @@ func newCandidateEntry(
 	}
 
 	if parentHeadDataHash == outputHeadDataHash {
-		return nil, ErrZeroLengthCycle
+		return nil, errZeroLengthCycle
 	}
 
 	return &candidateEntry{
@@ -157,7 +157,7 @@ func (c *candidateStorage) Len() int {
 func (c *candidateStorage) addCandidateEntry(candidate *candidateEntry) error {
 	_, ok := c.byCandidateHash[candidate.candidateHash]
 	if ok {
-		return ErrCandidateAlreadyKnown
+		return errCandidateAlreadyKnown
 	}
 
 	// updates the reference parent hash -> candidate
@@ -307,11 +307,11 @@ func newScopeWithAncestors(
 	prev := relayParent.Number
 	for _, ancestor := range ancestors {
 		if prev == 0 {
-			return nil, ErrUnexpectedAncestor{Number: ancestor.Number, Prev: prev}
+			return nil, errUnexpectedAncestor{Number: ancestor.Number, Prev: prev}
 		}
 
 		if ancestor.Number != prev-1 {
-			return nil, ErrUnexpectedAncestor{Number: ancestor.Number, Prev: prev}
+			return nil, errUnexpectedAncestor{Number: ancestor.Number, Prev: prev}
 		}
 
 		if prev == baseConstraints.MinRelayParentNumber {
@@ -606,7 +606,7 @@ func (f *fragmentChain) CanAddCandidateAsPotential(entry *candidateEntry) error 
 
 	_, existsInCandidateStorage := f.unconnected.byCandidateHash[candidateHash]
 	if f.bestChain.Contains(candidateHash) || existsInCandidateStorage {
-		return ErrCandidateAlreadyKnown
+		return errCandidateAlreadyKnown
 	}
 
 	return f.checkPotential(entry)
@@ -617,7 +617,7 @@ func (f *fragmentChain) CanAddCandidateAsPotential(entry *candidateEntry) error 
 // state, it will only be part of the unconnected storage
 func (f *fragmentChain) TryAddingSecondedCandidate(entry *candidateEntry) error {
 	if entry.state == backed {
-		return ErrIntroduceBackedCandidate
+		return errIntroduceBackedCandidate
 	}
 
 	err := f.CanAddCandidateAsPotential(entry)
@@ -791,13 +791,13 @@ func (f *fragmentChain) checkPotential(candidate *candidateEntry) error {
 
 	// trivial 0-length cycle
 	if candidate.outputHeadDataHash == parentHeadHash {
-		return ErrZeroLengthCycle
+		return errZeroLengthCycle
 	}
 
 	// Check if the relay parent is in scope
 	relayParentInfo := f.scope.Ancestor(relayParent)
 	if relayParentInfo == nil {
-		return ErrRelayParentNotInScope{
+		return errRelayParentNotInScope{
 			relayParentA: relayParent,
 			relayParentB: f.scope.EarliestRelayParent().Hash,
 		}
@@ -806,7 +806,7 @@ func (f *fragmentChain) checkPotential(candidate *candidateEntry) error {
 	// Check if the relay parent moved backwards from the latest candidate pending availability
 	earliestRPOfPendingAvailability := f.earliestRelayParentPendingAvailability()
 	if relayParentInfo.Number < earliestRPOfPendingAvailability.Number {
-		return ErrRelayParentPrecedesCandidatePendingAvailability{
+		return errRelayParentPrecedesCandidatePendingAvailability{
 			relayParentA: relayParentInfo.Hash,
 			relayParentB: earliestRPOfPendingAvailability.Hash,
 		}
@@ -816,13 +816,13 @@ func (f *fragmentChain) checkPotential(candidate *candidateEntry) error {
 	if otherCandidateHash, ok := f.bestChain.byParentHead[parentHeadHash]; ok {
 		if f.scope.GetPendingAvailability(otherCandidateHash) != nil {
 			// Cannot accept a fork with a candidate pending availability
-			return ErrForkWithCandidatePendingAvailability{candidateHash: otherCandidateHash}
+			return errForkWithCandidatePendingAvailability{candidateHash: otherCandidateHash}
 		}
 
 		// If the candidate is backed and in the current chain, accept only a candidate
 		// according to the fork selection rule
 		if forkSelectionRule(otherCandidateHash, candidate.candidateHash) == -1 {
-			return ErrForkChoiceRule{candidateHash: otherCandidateHash}
+			return errForkChoiceRule{candidateHash: otherCandidateHash}
 		}
 	}
 
@@ -847,7 +847,7 @@ func (f *fragmentChain) checkPotential(candidate *candidateEntry) error {
 		}
 
 		if parentCandidate == nil {
-			return ErrParentCandidateNotFound
+			return errParentCandidateNotFound
 		}
 
 		var err error
@@ -855,7 +855,7 @@ func (f *fragmentChain) checkPotential(candidate *candidateEntry) error {
 			f.scope.baseConstraints,
 			parentCandidate.cumulativeModifications)
 		if err != nil {
-			return ErrComputeConstraints{modificationErr: err}
+			return errComputeConstraints{modificationErr: err}
 		}
 
 		if ancestor := f.scope.Ancestor(parentCandidate.relayParent()); ancestor != nil {
@@ -883,15 +883,15 @@ func (f *fragmentChain) checkPotential(candidate *candidateEntry) error {
 		candidate.candidate.PersistedValidationData,
 	)
 	if err != nil {
-		return ErrCheckAgainstConstraints{fragmentValidityErr: err}
+		return errCheckAgainstConstraints{fragmentValidityErr: err}
 	}
 
 	if relayParentInfo.Number < constraints.MinRelayParentNumber {
-		return ErrRelayParentMovedBackwards
+		return errRelayParentMovedBackwards
 	}
 
 	if maybeMinRelayParentNumber != nil && relayParentInfo.Number < *maybeMinRelayParentNumber {
-		return ErrRelayParentMovedBackwards
+		return errRelayParentMovedBackwards
 	}
 
 	return nil
@@ -1134,13 +1134,13 @@ func (f *fragmentChain) checkCyclesOrInvalidTree(outputHeadDataHash common.Hash)
 	// of some candidate in the chain
 	_, ok := f.bestChain.byParentHead[outputHeadDataHash]
 	if ok {
-		return ErrCycle
+		return errCycle
 	}
 
 	// multiple paths to the same state, which cannot happen for a chain
 	_, ok = f.bestChain.byOutputHead[outputHeadDataHash]
 	if ok {
-		return ErrMultiplePaths
+		return errMultiplePaths
 	}
 
 	return nil
