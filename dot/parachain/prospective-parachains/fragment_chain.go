@@ -1,4 +1,4 @@
-package fragmentchain
+package prospectiveparachains
 
 import (
 	"bytes"
@@ -8,52 +8,47 @@ import (
 	"slices"
 
 	parachaintypes "github.com/ChainSafe/gossamer/dot/parachain/types"
-	inclusionemulator "github.com/ChainSafe/gossamer/dot/parachain/util/inclusion-emulator"
-	"github.com/ChainSafe/gossamer/internal/log"
 	"github.com/ChainSafe/gossamer/lib/common"
 	"github.com/tidwall/btree"
 )
 
-var logger = log.NewFromGlobal(log.AddContext("pkg", "fragment_chain"), log.SetLevel(log.Debug))
-
-type CandidateState byte
+type candidateState byte
 
 const (
-	Seconded CandidateState = iota
-	Backed
+	seconded candidateState = iota
+	backed
 )
 
+// forkSelectionRule does a normal comparison between 2 candidate hashes
+// and returns -1 if the first hash is lower than the second one meaning that
+// the first hash will be chosen as the best candidate.
 func forkSelectionRule(hash1, hash2 parachaintypes.CandidateHash) int {
 	return bytes.Compare(hash1.Value[:], hash2.Value[:])
 }
 
-// CandidateEntry represents a candidate in the CandidateStorage
-type CandidateEntry struct {
+// candidateEntry represents a candidate in the candidateStorage
+type candidateEntry struct {
 	candidateHash      parachaintypes.CandidateHash
 	parentHeadDataHash common.Hash
 	outputHeadDataHash common.Hash
 	relayParent        common.Hash
-	candidate          *inclusionemulator.ProspectiveCandidate
-	state              CandidateState
+	candidate          *ProspectiveCandidate
+	state              candidateState
 }
 
-func (c *CandidateEntry) Hash() parachaintypes.CandidateHash {
-	return c.candidateHash
-}
-
-func NewCandidateEntry(
+func newCandidateEntry(
 	candidateHash parachaintypes.CandidateHash,
 	candidate parachaintypes.CommittedCandidateReceipt,
 	persistedValidationData parachaintypes.PersistedValidationData,
-	state CandidateState,
-) (*CandidateEntry, error) {
+	state candidateState,
+) (*candidateEntry, error) {
 	pvdHash, err := persistedValidationData.Hash()
 	if err != nil {
 		return nil, fmt.Errorf("hashing persisted validation data: %w", err)
 	}
 
 	if pvdHash != candidate.Descriptor.PersistedValidationDataHash {
-		return nil, ErrPersistedValidationDataMismatch
+		return nil, errPersistedValidationDataMismatch
 	}
 
 	parentHeadDataHash, err := persistedValidationData.ParentHead.Hash()
@@ -67,16 +62,16 @@ func NewCandidateEntry(
 	}
 
 	if parentHeadDataHash == outputHeadDataHash {
-		return nil, ErrZeroLengthCycle
+		return nil, errZeroLengthCycle
 	}
 
-	return &CandidateEntry{
+	return &candidateEntry{
 		candidateHash:      candidateHash,
 		parentHeadDataHash: parentHeadDataHash,
 		outputHeadDataHash: outputHeadDataHash,
 		relayParent:        candidate.Descriptor.RelayParent,
 		state:              state,
-		candidate: &inclusionemulator.ProspectiveCandidate{
+		candidate: &ProspectiveCandidate{
 			Commitments:             candidate.Commitments,
 			PersistedValidationData: persistedValidationData,
 			PoVHash:                 candidate.Descriptor.PovHash,
@@ -85,17 +80,17 @@ func NewCandidateEntry(
 	}, nil
 }
 
-// CandidateStorage is an utility for storing candidates and information about them such as
+// candidateStorage is an utility for storing candidates and information about them such as
 // their relay-parents and their backing states. This does not assume any restriction on whether
 // or not candidates form a chain. Useful for storing all kinds of candidates.
-type CandidateStorage struct {
+type candidateStorage struct {
 	byParentHead    map[common.Hash]map[parachaintypes.CandidateHash]struct{}
 	byOutputHead    map[common.Hash]map[parachaintypes.CandidateHash]struct{}
-	byCandidateHash map[parachaintypes.CandidateHash]*CandidateEntry
+	byCandidateHash map[parachaintypes.CandidateHash]*candidateEntry
 }
 
-func (c *CandidateStorage) Clone() *CandidateStorage {
-	clone := NewCandidateStorage()
+func (c *candidateStorage) Clone() *candidateStorage {
+	clone := newCandidateStorage()
 
 	for parentHead, candidates := range c.byParentHead {
 		clone.byParentHead[parentHead] = make(map[parachaintypes.CandidateHash]struct{})
@@ -112,7 +107,7 @@ func (c *CandidateStorage) Clone() *CandidateStorage {
 	}
 
 	for candidateHash, entry := range c.byCandidateHash {
-		clone.byCandidateHash[candidateHash] = &CandidateEntry{
+		clone.byCandidateHash[candidateHash] = &candidateEntry{
 			candidateHash:      entry.candidateHash,
 			parentHeadDataHash: entry.parentHeadDataHash,
 			outputHeadDataHash: entry.outputHeadDataHash,
@@ -125,40 +120,44 @@ func (c *CandidateStorage) Clone() *CandidateStorage {
 	return clone
 }
 
-func NewCandidateStorage() *CandidateStorage {
-	return &CandidateStorage{
+func newCandidateStorage() *candidateStorage {
+	return &candidateStorage{
 		byParentHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
 		byOutputHead:    make(map[common.Hash]map[parachaintypes.CandidateHash]struct{}),
-		byCandidateHash: make(map[parachaintypes.CandidateHash]*CandidateEntry),
+		byCandidateHash: make(map[parachaintypes.CandidateHash]*candidateEntry),
 	}
 }
 
-func (c *CandidateStorage) AddPendingAvailabilityCandidate(
+func (c *candidateStorage) AddPendingAvailabilityCandidate(
 	candidateHash parachaintypes.CandidateHash,
 	candidate parachaintypes.CommittedCandidateReceipt,
 	persistedValidationData parachaintypes.PersistedValidationData,
 ) error {
-	entry, err := NewCandidateEntry(candidateHash, candidate, persistedValidationData, Backed)
+	entry, err := newCandidateEntry(candidateHash, candidate, persistedValidationData, backed)
 	if err != nil {
 		return err
 	}
 
 	if err := c.addCandidateEntry(entry); err != nil {
-		return fmt.Errorf("adding pending availability candidate: %w", err)
+		return fmt.Errorf("adding candidate entry: %w", err)
 	}
 
 	return nil
 }
 
 // Len return the number of stored candidate
-func (c *CandidateStorage) Len() int {
+func (c *candidateStorage) Len() int {
 	return len(c.byCandidateHash)
 }
 
-func (c *CandidateStorage) addCandidateEntry(candidate *CandidateEntry) error {
+// addCandidateEntry inserts a new entry in the storage map, where the candidate hash
+// is the key and the *candidateEntry is the value, also it create other links, the
+// parent head hash points to the candidate hash also the output head hash points to the
+// candidate hash
+func (c *candidateStorage) addCandidateEntry(candidate *candidateEntry) error {
 	_, ok := c.byCandidateHash[candidate.candidateHash]
 	if ok {
-		return ErrCandidateAlreadyKnown
+		return errCandidateAlreadyKnown
 	}
 
 	// updates the reference parent hash -> candidate
@@ -183,7 +182,10 @@ func (c *CandidateStorage) addCandidateEntry(candidate *CandidateEntry) error {
 	return nil
 }
 
-func (c *CandidateStorage) removeCandidate(candidateHash parachaintypes.CandidateHash) {
+// removeCandidate removes the candidate entry from the storage based on candidateHash
+// it also removes the parent head hash entry that points to candidateHash and
+// removes the output head hash entry that points to candidateHash
+func (c *candidateStorage) removeCandidate(candidateHash parachaintypes.CandidateHash) {
 	entry, ok := c.byCandidateHash[candidateHash]
 	if !ok {
 		return
@@ -206,27 +208,16 @@ func (c *CandidateStorage) removeCandidate(candidateHash parachaintypes.Candidat
 	}
 }
 
-func (c *CandidateStorage) markBacked(candidateHash parachaintypes.CandidateHash) {
+func (c *candidateStorage) markBacked(candidateHash parachaintypes.CandidateHash) {
 	entry, ok := c.byCandidateHash[candidateHash]
 	if !ok {
 		logger.Tracef("candidate not found while marking as backed")
 	}
 
-	entry.state = Backed
+	entry.state = backed
 }
 
-// candidates returns an iterator over references to the stored candidates, in arbitrary order.
-func (c *CandidateStorage) candidates() iter.Seq[*CandidateEntry] {
-	return func(yield func(*CandidateEntry) bool) {
-		for _, entry := range c.byCandidateHash {
-			if !yield(entry) {
-				return
-			}
-		}
-	}
-}
-
-func (c *CandidateStorage) headDataByHash(hash common.Hash) *parachaintypes.HeadData {
+func (c *candidateStorage) headDataByHash(hash common.Hash) *parachaintypes.HeadData {
 	// first, search for candidates outputting this head data and extract the head data
 	// from their commitments if they exist.
 	// otherwise, search for candidates building upon this head data and extract the
@@ -251,15 +242,15 @@ func (c *CandidateStorage) headDataByHash(hash common.Hash) *parachaintypes.Head
 	return nil
 }
 
-func (c *CandidateStorage) possibleBackedParaChildren(parentHeadHash common.Hash) iter.Seq[*CandidateEntry] {
-	return func(yield func(*CandidateEntry) bool) {
+func (c *candidateStorage) possibleBackedParaChildren(parentHeadHash common.Hash) iter.Seq[*candidateEntry] {
+	return func(yield func(*candidateEntry) bool) {
 		seqOfCandidateHashes, ok := c.byParentHead[parentHeadHash]
 		if !ok {
 			return
 		}
 
 		for candidateHash := range seqOfCandidateHashes {
-			if entry, ok := c.byCandidateHash[candidateHash]; ok && entry.state == Backed {
+			if entry, ok := c.byCandidateHash[candidateHash]; ok && entry.state == backed {
 				if !yield(entry) {
 					return
 				}
@@ -268,32 +259,32 @@ func (c *CandidateStorage) possibleBackedParaChildren(parentHeadHash common.Hash
 	}
 }
 
-// PendingAvailability is a candidate on-chain but pending availability, for special
-// treatment in the `Scope`
-type PendingAvailability struct {
-	CandidateHash parachaintypes.CandidateHash
-	RelayParent   inclusionemulator.RelayChainBlockInfo
+// pendingAvailability is a candidate on-chain but pending availability, for special
+// treatment in the `scope`
+type pendingAvailability struct {
+	candidateHash parachaintypes.CandidateHash
+	relayParent   RelayChainBlockInfo
 }
 
 // The scope of a fragment chain
-type Scope struct {
+type scope struct {
 	// the relay parent we're currently building on top of
-	relayParent inclusionemulator.RelayChainBlockInfo
+	relayParent RelayChainBlockInfo
 	// the other relay parents candidates are allowed to build upon,
 	// mapped by the block number
-	ancestors *btree.Map[uint, inclusionemulator.RelayChainBlockInfo]
+	ancestors *btree.Map[uint, RelayChainBlockInfo]
 	// the other relay parents candidates are allowed to build upon,
 	// mapped by hash
-	ancestorsByHash map[common.Hash]inclusionemulator.RelayChainBlockInfo
+	ancestorsByHash map[common.Hash]RelayChainBlockInfo
 	// candidates pending availability at this block
-	pendingAvailability []*PendingAvailability
+	pendingAvailability []*pendingAvailability
 	// the base constraints derived from the latest included candidate
 	baseConstraints *parachaintypes.Constraints
 	// equal to `max_candidate_depth`
 	maxDepth uint
 }
 
-// NewScopeWithAncestors defines a new scope, all arguments are straightforward
+// newScopeWithAncestors defines a new scope, all arguments are straightforward
 // except ancestors. Ancestor should be in reverse order, starting with the parent
 // of the relayParent, and proceeding backwards in block number decrements of 1.
 // Ancestors not following these conditions will be rejected.
@@ -303,24 +294,24 @@ type Scope struct {
 //
 // Only ancestor whose children have the same session id as the relay parent's children
 // should be provided. It is allowed to provide 0 ancestors.
-func NewScopeWithAncestors(
-	relayParent inclusionemulator.RelayChainBlockInfo,
+func newScopeWithAncestors(
+	relayParent RelayChainBlockInfo,
 	baseConstraints *parachaintypes.Constraints,
-	pendingAvailability []*PendingAvailability,
+	pendingAvailability []*pendingAvailability,
 	maxDepth uint,
-	ancestors []inclusionemulator.RelayChainBlockInfo,
-) (*Scope, error) {
-	ancestorsMap := btree.NewMap[uint, inclusionemulator.RelayChainBlockInfo](100)
-	ancestorsByHash := make(map[common.Hash]inclusionemulator.RelayChainBlockInfo)
+	ancestors []RelayChainBlockInfo,
+) (*scope, error) {
+	ancestorsMap := btree.NewMap[uint, RelayChainBlockInfo](100)
+	ancestorsByHash := make(map[common.Hash]RelayChainBlockInfo)
 
 	prev := relayParent.Number
 	for _, ancestor := range ancestors {
 		if prev == 0 {
-			return nil, ErrUnexpectedAncestor{Number: ancestor.Number, Prev: prev}
+			return nil, errUnexpectedAncestor{Number: ancestor.Number, Prev: prev}
 		}
 
 		if ancestor.Number != prev-1 {
-			return nil, ErrUnexpectedAncestor{Number: ancestor.Number, Prev: prev}
+			return nil, errUnexpectedAncestor{Number: ancestor.Number, Prev: prev}
 		}
 
 		if prev == baseConstraints.MinRelayParentNumber {
@@ -332,7 +323,7 @@ func NewScopeWithAncestors(
 		ancestorsMap.Set(ancestor.Number, ancestor)
 	}
 
-	return &Scope{
+	return &scope{
 		relayParent:         relayParent,
 		baseConstraints:     baseConstraints,
 		pendingAvailability: pendingAvailability,
@@ -343,7 +334,7 @@ func NewScopeWithAncestors(
 }
 
 // EarliestRelayParent gets the earliest relay-parent allowed in the scope of the fragment chain.
-func (s *Scope) EarliestRelayParent() inclusionemulator.RelayChainBlockInfo {
+func (s *scope) EarliestRelayParent() RelayChainBlockInfo {
 	if iter := s.ancestors.Iter(); iter.Next() {
 		return iter.Value()
 	}
@@ -351,7 +342,7 @@ func (s *Scope) EarliestRelayParent() inclusionemulator.RelayChainBlockInfo {
 }
 
 // Ancestor gets the relay ancestor of the fragment chain by hash.
-func (s *Scope) Ancestor(hash common.Hash) *inclusionemulator.RelayChainBlockInfo {
+func (s *scope) Ancestor(hash common.Hash) *RelayChainBlockInfo {
 	if hash == s.relayParent.Hash {
 		return &s.relayParent
 	}
@@ -364,9 +355,9 @@ func (s *Scope) Ancestor(hash common.Hash) *inclusionemulator.RelayChainBlockInf
 }
 
 // Whether the candidate in question is one pending availability in this scope.
-func (s *Scope) GetPendingAvailability(candidateHash parachaintypes.CandidateHash) *PendingAvailability {
+func (s *scope) GetPendingAvailability(candidateHash parachaintypes.CandidateHash) *pendingAvailability {
 	for _, c := range s.pendingAvailability {
-		if c.CandidateHash == candidateHash {
+		if c.candidateHash == candidateHash {
 			return c
 		}
 	}
@@ -375,38 +366,38 @@ func (s *Scope) GetPendingAvailability(candidateHash parachaintypes.CandidateHas
 
 // Fragment node is a node that belongs to a `BackedChain`. It holds constraints based on
 // the ancestors in the chain
-type FragmentNode struct {
-	fragment                *inclusionemulator.Fragment
+type fragmentNode struct {
+	fragment                *Fragment
 	candidateHash           parachaintypes.CandidateHash
-	cumulativeModifications *inclusionemulator.ConstraintModifications
+	cumulativeModifications *ConstraintModifications
 	parentHeadDataHash      common.Hash
 	outputHeadDataHash      common.Hash
 }
 
-func (f *FragmentNode) relayParent() common.Hash {
+func (f *fragmentNode) relayParent() common.Hash {
 	return f.fragment.RelayParent().Hash
 }
 
-// NewCandidateEntryFromFragment creates a candidate entry from a fragment, we dont need
-// to perform the checks done in `NewCandidateEntry` since a `FragmentNode` always comes
-// from a `CandidateEntry`
-func NewCandidateEntryFromFragment(node *FragmentNode) *CandidateEntry {
-	return &CandidateEntry{
+// newCandidateEntryFromFragment creates a candidate entry from a fragment, we dont need
+// to perform the checks done in `newCandidateEntry` since a `fragmentNode` always comes
+// from a `candidateEntry`
+func newCandidateEntryFromFragment(node *fragmentNode) *candidateEntry {
+	return &candidateEntry{
 		candidateHash:      node.candidateHash,
 		parentHeadDataHash: node.parentHeadDataHash,
 		outputHeadDataHash: node.outputHeadDataHash,
 		candidate:          node.fragment.Candidate(),
 		relayParent:        node.relayParent(),
 		// a fragment node is always backed
-		state: Backed,
+		state: backed,
 	}
 }
 
-// BackedChain is a chain of backed/backable candidates
+// backedChain is a chain of backed/backable candidates
 // Includes candidates pending availability and candidates which may be backed on-chain
-type BackedChain struct {
+type backedChain struct {
 	// holds the candidate chain
-	chain []*FragmentNode
+	chain []*fragmentNode
 
 	// index from parent head data to the candidate that has that head data as parent
 	// only contains the candidates present in the `chain`
@@ -420,23 +411,23 @@ type BackedChain struct {
 	candidates map[parachaintypes.CandidateHash]struct{}
 }
 
-func NewBackedChain() *BackedChain {
-	return &BackedChain{
-		chain:        make([]*FragmentNode, 0),
+func newBackedChain() *backedChain {
+	return &backedChain{
+		chain:        make([]*fragmentNode, 0),
 		byParentHead: make(map[common.Hash]parachaintypes.CandidateHash),
 		byOutputHead: make(map[common.Hash]parachaintypes.CandidateHash),
 		candidates:   make(map[parachaintypes.CandidateHash]struct{}),
 	}
 }
 
-func (bc *BackedChain) Push(candidate *FragmentNode) {
+func (bc *backedChain) Push(candidate *fragmentNode) {
 	bc.candidates[candidate.candidateHash] = struct{}{}
 	bc.byParentHead[candidate.parentHeadDataHash] = candidate.candidateHash
 	bc.byOutputHead[candidate.outputHeadDataHash] = candidate.candidateHash
 	bc.chain = append(bc.chain, candidate)
 }
 
-func (bc *BackedChain) Clear() []*FragmentNode {
+func (bc *backedChain) Clear() []*fragmentNode {
 	bc.byParentHead = make(map[common.Hash]parachaintypes.CandidateHash)
 	bc.byOutputHead = make(map[common.Hash]parachaintypes.CandidateHash)
 	bc.candidates = make(map[parachaintypes.CandidateHash]struct{})
@@ -446,7 +437,7 @@ func (bc *BackedChain) Clear() []*FragmentNode {
 	return oldChain
 }
 
-func (bc *BackedChain) RevertToParentHash(parentHeadDataHash common.Hash) []*FragmentNode {
+func (bc *backedChain) RevertToParentHash(parentHeadDataHash common.Hash) []*fragmentNode {
 	foundIndex := -1
 
 	for i := 0; i < len(bc.chain); i++ {
@@ -464,7 +455,7 @@ func (bc *BackedChain) RevertToParentHash(parentHeadDataHash common.Hash) []*Fra
 	if foundIndex != -1 {
 		// drain the elements from the found index until
 		// the end of the slice and return them
-		removed := make([]*FragmentNode, len(bc.chain)-(foundIndex+1))
+		removed := make([]*fragmentNode, len(bc.chain)-(foundIndex+1))
 		copy(removed, bc.chain[foundIndex+1:])
 		bc.chain = slices.Delete(bc.chain, foundIndex+1, len(bc.chain))
 
@@ -474,7 +465,7 @@ func (bc *BackedChain) RevertToParentHash(parentHeadDataHash common.Hash) []*Fra
 	return nil
 }
 
-func (bc *BackedChain) Contains(hash parachaintypes.CandidateHash) bool {
+func (bc *backedChain) Contains(hash parachaintypes.CandidateHash) bool {
 	_, ok := bc.candidates[hash]
 	return ok
 }
@@ -483,30 +474,30 @@ func (bc *BackedChain) Contains(hash parachaintypes.CandidateHash) bool {
 // best backable candidate chain, as well as potential candidates which could
 // become connected to the chain in the future or which could even overwrite
 // the existing chain
-type FragmentChain struct {
+type fragmentChain struct {
 	// the current scope, which dictates the on-chain operating constraints that
 	// all future candidates must ad-here to.
-	scope *Scope
+	scope *scope
 
 	// the current best chain of backable candidates. It only contains candidates
 	// which build on top of each other and which have reached the backing quorum.
 	// In the presence of potential forks, this chain will pick a fork according to
 	// the `forkSelectionRule`
-	bestChain *BackedChain
+	bestChain *backedChain
 
 	// the potential candidate storage. Contains candidates which are not yet part of
 	// the `chain` but may become in the future. These can form any tree shape as well
 	// as contain unconnected candidates for which we don't know the parent.
-	unconnected *CandidateStorage
+	unconnected *candidateStorage
 }
 
-// NewFragmentChain createa a new fragment chain with the given scope and populates it with
+// newFragmentChain createa a new fragment chain with the given scope and populates it with
 // the candidates pending availability
-func NewFragmentChain(scope *Scope, candidatesPendingAvailability *CandidateStorage) *FragmentChain {
-	fragmentChain := &FragmentChain{
+func newFragmentChain(scope *scope, candidatesPendingAvailability *candidateStorage) *fragmentChain {
+	fragmentChain := &fragmentChain{
 		scope:       scope,
-		bestChain:   NewBackedChain(),
-		unconnected: NewCandidateStorage(),
+		bestChain:   newBackedChain(),
+		unconnected: newCandidateStorage(),
 	}
 
 	// we only need to populate the best backable chain. Candidates pending availability
@@ -515,9 +506,9 @@ func NewFragmentChain(scope *Scope, candidatesPendingAvailability *CandidateStor
 	return fragmentChain
 }
 
-// PopulateFromPrevious populates the `FragmentChain` given the new candidates pending
+// PopulateFromPrevious populates the `fragmentChain` given the new candidates pending
 // availability and the optional previous fragment chain (of the previous relay parent)
-func (f *FragmentChain) PopulateFromPrevious(prevFragmentChain *FragmentChain) {
+func (f *fragmentChain) PopulateFromPrevious(prevFragmentChain *fragmentChain) {
 	prevStorage := prevFragmentChain.unconnected.Clone()
 	for _, candidate := range prevFragmentChain.bestChain.chain {
 		// if they used to be pending availability, dont add them. This is fine because:
@@ -529,7 +520,7 @@ func (f *FragmentChain) PopulateFromPrevious(prevFragmentChain *FragmentChain) {
 		// availability candidates will always be part of the best chain
 		pending := prevFragmentChain.scope.GetPendingAvailability(candidate.candidateHash)
 		if pending == nil {
-			prevStorage.addCandidateEntry(NewCandidateEntryFromFragment(candidate))
+			_ = prevStorage.addCandidateEntry(newCandidateEntryFromFragment(candidate))
 		}
 	}
 
@@ -544,25 +535,25 @@ func (f *FragmentChain) PopulateFromPrevious(prevFragmentChain *FragmentChain) {
 	f.populateUnconnectedPotentialCandidates(prevStorage)
 }
 
-func (f *FragmentChain) Scope() *Scope {
+func (f *fragmentChain) Scope() *scope {
 	return f.scope
 }
 
-func (f *FragmentChain) BestChainLen() int {
+func (f *fragmentChain) BestChainLen() int {
 	return len(f.bestChain.chain)
 }
 
-func (f *FragmentChain) UnconnectedLen() int {
+func (f *fragmentChain) UnconnectedLen() int {
 	return f.unconnected.Len()
 }
 
-func (f *FragmentChain) ContainsUnconnectedCandidate(candidateHash parachaintypes.CandidateHash) bool {
+func (f *fragmentChain) ContainsUnconnectedCandidate(candidateHash parachaintypes.CandidateHash) bool {
 	_, ok := f.unconnected.byCandidateHash[candidateHash]
 	return ok
 }
 
 // BestChainVec returns a vector of the chain's candidate hashes, in-order.
-func (f *FragmentChain) BestChainVec() (hashes []parachaintypes.CandidateHash) {
+func (f *fragmentChain) BestChainVec() (hashes []parachaintypes.CandidateHash) {
 	hashes = make([]parachaintypes.CandidateHash, len(f.bestChain.chain))
 	for idx, node := range f.bestChain.chain {
 		hashes[idx] = node.candidateHash
@@ -570,22 +561,17 @@ func (f *FragmentChain) BestChainVec() (hashes []parachaintypes.CandidateHash) {
 	return hashes
 }
 
-// Unconnected returns a vector of the unconnected potential candidate hashes, in arbitrary order.
-func (f *FragmentChain) Unconnected() iter.Seq[*CandidateEntry] {
-	return f.unconnected.candidates()
-}
-
-func (f *FragmentChain) IsCandidateBacked(hash parachaintypes.CandidateHash) bool {
+func (f *fragmentChain) IsCandidateBacked(hash parachaintypes.CandidateHash) bool {
 	if f.bestChain.Contains(hash) {
 		return true
 	}
 
 	candidate := f.unconnected.byCandidateHash[hash]
-	return candidate != nil && candidate.state == Backed
+	return candidate != nil && candidate.state == backed
 }
 
 // CandidateBacked marks a candidate as backed. This can trigger a recreation of the best backable chain.
-func (f *FragmentChain) CandidateBacked(newlyBackedCandidate parachaintypes.CandidateHash) {
+func (f *fragmentChain) CandidateBacked(newlyBackedCandidate parachaintypes.CandidateHash) {
 	// already backed
 	if f.bestChain.Contains(newlyBackedCandidate) {
 		return
@@ -607,7 +593,7 @@ func (f *FragmentChain) CandidateBacked(newlyBackedCandidate parachaintypes.Cand
 	}
 
 	prevStorage := f.unconnected.Clone()
-	f.unconnected = NewCandidateStorage()
+	f.unconnected = newCandidateStorage()
 
 	f.populateChain(prevStorage)
 	f.trimUneligibleForks(prevStorage, &parentHeadDataHash)
@@ -615,12 +601,12 @@ func (f *FragmentChain) CandidateBacked(newlyBackedCandidate parachaintypes.Cand
 }
 
 // CanAddCandidateAsPotential checks if this candidate could be added in the future
-func (f *FragmentChain) CanAddCandidateAsPotential(entry *CandidateEntry) error {
+func (f *fragmentChain) CanAddCandidateAsPotential(entry *candidateEntry) error {
 	candidateHash := entry.candidateHash
 
 	_, existsInCandidateStorage := f.unconnected.byCandidateHash[candidateHash]
 	if f.bestChain.Contains(candidateHash) || existsInCandidateStorage {
-		return ErrCandidateAlreadyKnown
+		return errCandidateAlreadyKnown
 	}
 
 	return f.checkPotential(entry)
@@ -629,9 +615,9 @@ func (f *FragmentChain) CanAddCandidateAsPotential(entry *CandidateEntry) error 
 // TryAddingSecondedCandidate tries to add a candidate as a seconded candidate, if the
 // candidate has potential. It will never be added to the chain directly in the seconded
 // state, it will only be part of the unconnected storage
-func (f *FragmentChain) TryAddingSecondedCandidate(entry *CandidateEntry) error {
-	if entry.state == Backed {
-		return ErrIntroduceBackedCandidate
+func (f *fragmentChain) TryAddingSecondedCandidate(entry *candidateEntry) error {
+	if entry.state == backed {
+		return errIntroduceBackedCandidate
 	}
 
 	err := f.CanAddCandidateAsPotential(entry)
@@ -643,7 +629,7 @@ func (f *FragmentChain) TryAddingSecondedCandidate(entry *CandidateEntry) error 
 }
 
 // GetHeadDataByHash tries to get the full head data associated with this hash
-func (f *FragmentChain) GetHeadDataByHash(headDataHash common.Hash) (*parachaintypes.HeadData, error) {
+func (f *fragmentChain) GetHeadDataByHash(headDataHash common.Hash) (*parachaintypes.HeadData, error) {
 	reqParent := f.scope.baseConstraints.RequiredParent
 	reqParentHash, err := reqParent.Hash()
 	if err != nil {
@@ -681,17 +667,17 @@ func (f *FragmentChain) GetHeadDataByHash(headDataHash common.Hash) (*parachaint
 	return f.unconnected.headDataByHash(headDataHash), nil
 }
 
-type CandidateAndRelayParent struct {
-	CandidateHash   parachaintypes.CandidateHash
-	RealyParentHash common.Hash
+type candidateAndRelayParent struct {
+	candidateHash   parachaintypes.CandidateHash
+	realyParentHash common.Hash
 }
 
 // FindBackableChain selects `count` candidates after the given `ancestors` which
 // can be backed on chain next. The intention of the `ancestors` is to allow queries
 // on the basis of one or more candidates which were previously pending availability
 // becoming available or candidates timing out
-func (f *FragmentChain) FindBackableChain(
-	ancestors map[parachaintypes.CandidateHash]struct{}, count uint32) []*CandidateAndRelayParent {
+func (f *fragmentChain) FindBackableChain(
+	ancestors map[parachaintypes.CandidateHash]struct{}, count uint32) []*candidateAndRelayParent {
 	if count == 0 {
 		return nil
 	}
@@ -699,15 +685,15 @@ func (f *FragmentChain) FindBackableChain(
 	basePos := f.findAncestorPath(ancestors)
 
 	actualEndIdx := min(basePos+int(count), len(f.bestChain.chain))
-	res := make([]*CandidateAndRelayParent, 0, actualEndIdx-basePos)
+	res := make([]*candidateAndRelayParent, 0, actualEndIdx-basePos)
 
 	for _, elem := range f.bestChain.chain[basePos:actualEndIdx] {
 		// only supply candidates which are not yet pending availability.
 		// `ancestors` should have already contained them, but check just in case
 		if pending := f.scope.GetPendingAvailability(elem.candidateHash); pending == nil {
-			res = append(res, &CandidateAndRelayParent{
-				CandidateHash:   elem.candidateHash,
-				RealyParentHash: elem.relayParent(),
+			res = append(res, &candidateAndRelayParent{
+				candidateHash:   elem.candidateHash,
+				realyParentHash: elem.relayParent(),
 			})
 		} else {
 			break
@@ -720,7 +706,7 @@ func (f *FragmentChain) FindBackableChain(
 // findAncestorPath tries to orders the ancestors into a viable path from root to the last one.
 // stops when the ancestors are all used or when a node in the chain is not present in the
 // ancestors set. Returns the index in the chain were the search stopped
-func (f *FragmentChain) findAncestorPath(ancestors map[parachaintypes.CandidateHash]struct{}) int {
+func (f *fragmentChain) findAncestorPath(ancestors map[parachaintypes.CandidateHash]struct{}) int {
 	if len(f.bestChain.chain) == 0 {
 		return 0
 	}
@@ -743,7 +729,7 @@ func (f *FragmentChain) findAncestorPath(ancestors map[parachaintypes.CandidateH
 // the chain. The value returned may not be valid if we want to add a candidate pending
 // availability, which may have a relay parent which is out of scope, special handling
 // is needed in that case.
-func (f *FragmentChain) earliestRelayParent() *inclusionemulator.RelayChainBlockInfo {
+func (f *fragmentChain) earliestRelayParent() *RelayChainBlockInfo {
 	if len(f.bestChain.chain) > 0 {
 		lastCandidate := f.bestChain.chain[len(f.bestChain.chain)-1]
 		info := f.scope.Ancestor(lastCandidate.relayParent())
@@ -758,7 +744,7 @@ func (f *FragmentChain) earliestRelayParent() *inclusionemulator.RelayChainBlock
 			return nil
 		}
 
-		return &pending.RelayParent
+		return &pending.relayParent
 	}
 
 	earliest := f.scope.EarliestRelayParent()
@@ -768,11 +754,11 @@ func (f *FragmentChain) earliestRelayParent() *inclusionemulator.RelayChainBlock
 // earliestRelayParentPendingAvailability returns the earliest relay parent a potential
 // candidate may have for it to ever be added to the chain. This is the relay parent of
 // the last candidate pending availability or the earliest relay parent in scope.
-func (f *FragmentChain) earliestRelayParentPendingAvailability() *inclusionemulator.RelayChainBlockInfo {
+func (f *fragmentChain) earliestRelayParentPendingAvailability() *RelayChainBlockInfo {
 	for i := len(f.bestChain.chain) - 1; i >= 0; i-- {
 		candidate := f.bestChain.chain[i]
 		if pending := f.scope.GetPendingAvailability(candidate.candidateHash); pending != nil {
-			return &pending.RelayParent
+			return &pending.relayParent
 		}
 	}
 	earliest := f.scope.EarliestRelayParent()
@@ -781,7 +767,7 @@ func (f *FragmentChain) earliestRelayParentPendingAvailability() *inclusionemula
 
 // populateUnconnectedPotentialCandidates populates the unconnected potential candidate storage
 // starting from a previous storage
-func (f *FragmentChain) populateUnconnectedPotentialCandidates(oldStorage *CandidateStorage) {
+func (f *fragmentChain) populateUnconnectedPotentialCandidates(oldStorage *candidateStorage) {
 	for _, candidate := range oldStorage.byCandidateHash {
 		// sanity check, all pending availability candidates should be already present
 		// in the chain
@@ -799,19 +785,19 @@ func (f *FragmentChain) populateUnconnectedPotentialCandidates(oldStorage *Candi
 	}
 }
 
-func (f *FragmentChain) checkPotential(candidate *CandidateEntry) error {
+func (f *fragmentChain) checkPotential(candidate *candidateEntry) error {
 	relayParent := candidate.relayParent
 	parentHeadHash := candidate.parentHeadDataHash
 
 	// trivial 0-length cycle
 	if candidate.outputHeadDataHash == parentHeadHash {
-		return ErrZeroLengthCycle
+		return errZeroLengthCycle
 	}
 
 	// Check if the relay parent is in scope
 	relayParentInfo := f.scope.Ancestor(relayParent)
 	if relayParentInfo == nil {
-		return ErrRelayParentNotInScope{
+		return errRelayParentNotInScope{
 			relayParentA: relayParent,
 			relayParentB: f.scope.EarliestRelayParent().Hash,
 		}
@@ -820,7 +806,7 @@ func (f *FragmentChain) checkPotential(candidate *CandidateEntry) error {
 	// Check if the relay parent moved backwards from the latest candidate pending availability
 	earliestRPOfPendingAvailability := f.earliestRelayParentPendingAvailability()
 	if relayParentInfo.Number < earliestRPOfPendingAvailability.Number {
-		return ErrRelayParentPrecedesCandidatePendingAvailability{
+		return errRelayParentPrecedesCandidatePendingAvailability{
 			relayParentA: relayParentInfo.Hash,
 			relayParentB: earliestRPOfPendingAvailability.Hash,
 		}
@@ -830,13 +816,13 @@ func (f *FragmentChain) checkPotential(candidate *CandidateEntry) error {
 	if otherCandidateHash, ok := f.bestChain.byParentHead[parentHeadHash]; ok {
 		if f.scope.GetPendingAvailability(otherCandidateHash) != nil {
 			// Cannot accept a fork with a candidate pending availability
-			return ErrForkWithCandidatePendingAvailability{candidateHash: otherCandidateHash}
+			return errForkWithCandidatePendingAvailability{candidateHash: otherCandidateHash}
 		}
 
 		// If the candidate is backed and in the current chain, accept only a candidate
 		// according to the fork selection rule
 		if forkSelectionRule(otherCandidateHash, candidate.candidateHash) == -1 {
-			return ErrForkChoiceRule{candidateHash: otherCandidateHash}
+			return errForkChoiceRule{candidateHash: otherCandidateHash}
 		}
 	}
 
@@ -851,7 +837,7 @@ func (f *FragmentChain) checkPotential(candidate *CandidateEntry) error {
 	}
 
 	if parentCandidateHash, ok := f.bestChain.byOutputHead[parentHeadHash]; ok {
-		var parentCandidate *FragmentNode
+		var parentCandidate *fragmentNode
 
 		for _, c := range f.bestChain.chain {
 			if c.candidateHash == parentCandidateHash {
@@ -861,15 +847,15 @@ func (f *FragmentChain) checkPotential(candidate *CandidateEntry) error {
 		}
 
 		if parentCandidate == nil {
-			return ErrParentCandidateNotFound
+			return errParentCandidateNotFound
 		}
 
 		var err error
-		constraints, err = inclusionemulator.ApplyModifications(
+		constraints, err = ApplyModifications(
 			f.scope.baseConstraints,
 			parentCandidate.cumulativeModifications)
 		if err != nil {
-			return ErrComputeConstraints{modificationErr: err}
+			return errComputeConstraints{modificationErr: err}
 		}
 
 		if ancestor := f.scope.Ancestor(parentCandidate.relayParent()); ancestor != nil {
@@ -889,7 +875,7 @@ func (f *FragmentChain) checkPotential(candidate *CandidateEntry) error {
 	}
 
 	// Check against constraints if we have a full concrete candidate
-	_, err = inclusionemulator.CheckAgainstConstraints(
+	_, err = CheckAgainstConstraints(
 		relayParentInfo,
 		constraints,
 		candidate.candidate.Commitments,
@@ -897,15 +883,15 @@ func (f *FragmentChain) checkPotential(candidate *CandidateEntry) error {
 		candidate.candidate.PersistedValidationData,
 	)
 	if err != nil {
-		return ErrCheckAgainstConstraints{fragmentValidityErr: err}
+		return errCheckAgainstConstraints{fragmentValidityErr: err}
 	}
 
 	if relayParentInfo.Number < constraints.MinRelayParentNumber {
-		return ErrRelayParentMovedBackwards
+		return errRelayParentMovedBackwards
 	}
 
 	if maybeMinRelayParentNumber != nil && relayParentInfo.Number < *maybeMinRelayParentNumber {
-		return ErrRelayParentMovedBackwards
+		return errRelayParentMovedBackwards
 	}
 
 	return nil
@@ -914,7 +900,7 @@ func (f *FragmentChain) checkPotential(candidate *CandidateEntry) error {
 // trimUneligibleForks once the backable chain was populated, trim the forks generated by candidate
 // hashes which are not present in the best chain. Fan this out into a full breadth-first search. If
 // starting point is not nil then start the search from the candidates having this parent head hash.
-func (f *FragmentChain) trimUneligibleForks(storage *CandidateStorage, startingPoint *common.Hash) {
+func (f *fragmentChain) trimUneligibleForks(storage *candidateStorage, startingPoint *common.Hash) {
 	type queueItem struct {
 		hash         common.Hash
 		hasPotential bool
@@ -989,22 +975,22 @@ func (f *FragmentChain) trimUneligibleForks(storage *CandidateStorage, startingP
 }
 
 type possibleChild struct {
-	fragment           *inclusionemulator.Fragment
+	fragment           *Fragment
 	candidateHash      parachaintypes.CandidateHash
 	outputHeadDataHash common.Hash
 	parentHeadDataHash common.Hash
 }
 
-// populateChain populates the fragment chain with candidates from the supplied `CandidateStorage`.
-// Can be called by the `NewFragmentChain` or when backing a new candidate. When this is called
+// populateChain populates the fragment chain with candidates from the supplied `candidateStorage`.
+// Can be called by the `newFragmentChain` or when backing a new candidate. When this is called
 // it may cause the previous chain to be completely erased or it may add more than one candidate
-func (f *FragmentChain) populateChain(storage *CandidateStorage) {
-	var cumulativeModifications *inclusionemulator.ConstraintModifications
+func (f *fragmentChain) populateChain(storage *candidateStorage) {
+	var cumulativeModifications *ConstraintModifications
 	if len(f.bestChain.chain) > 0 {
 		lastCandidate := f.bestChain.chain[len(f.bestChain.chain)-1]
 		cumulativeModifications = lastCandidate.cumulativeModifications.Clone()
 	} else {
-		cumulativeModifications = inclusionemulator.NewConstraintModificationsIdentity()
+		cumulativeModifications = NewConstraintModificationsIdentity()
 	}
 
 	earliestRelayParent := f.earliestRelayParent()
@@ -1012,12 +998,11 @@ func (f *FragmentChain) populateChain(storage *CandidateStorage) {
 		return
 	}
 
-	for len(f.bestChain.chain) < int(f.scope.maxDepth) {
-		childConstraints, err := inclusionemulator.ApplyModifications(
+	for len(f.bestChain.chain) < int(f.scope.maxDepth)+1 {
+		childConstraints, err := ApplyModifications(
 			f.scope.baseConstraints, cumulativeModifications)
 		if err != nil {
-			// TODO: include logger
-			fmt.Println("failed to apply modifications:", err)
+			logger.Warnf("failed to apply modifications: %s", err.Error())
 			break
 		}
 
@@ -1034,16 +1019,16 @@ func (f *FragmentChain) populateChain(storage *CandidateStorage) {
 			// 2. parent hash is correct
 			// 3. relay parent does not move backwards
 			// 4. all non-pending-availability candidates have relay-parent in the scope
-			// 5. candidate outputs fulfill constraints
+			// 5. candidate outputs fulfil constraints
 
-			var relayParent *inclusionemulator.RelayChainBlockInfo
+			var relayParent *RelayChainBlockInfo
 			var minRelayParent uint
 
 			pending := f.scope.GetPendingAvailability(candidateEntry.candidateHash)
 			if pending != nil {
-				relayParent = &pending.RelayParent
+				relayParent = &pending.relayParent
 				if len(f.bestChain.chain) == 0 {
-					minRelayParent = pending.RelayParent.Number
+					minRelayParent = pending.relayParent.Number
 				} else {
 					minRelayParent = earliestRelayParent.Number
 				}
@@ -1058,7 +1043,7 @@ func (f *FragmentChain) populateChain(storage *CandidateStorage) {
 			}
 
 			if err := f.checkCyclesOrInvalidTree(candidateEntry.outputHeadDataHash); err != nil {
-				fmt.Println("checking cycle or invalid tree:", err)
+				logger.Warnf("failed while checking cycle or invalid tree: %s", err.Error())
 				continue
 			}
 
@@ -1082,12 +1067,12 @@ func (f *FragmentChain) populateChain(storage *CandidateStorage) {
 			constraints := childConstraints.Clone()
 			if pending != nil {
 				// overwrite for candidates pending availability as a special-case
-				constraints.MinRelayParentNumber = pending.RelayParent.Number
+				constraints.MinRelayParentNumber = pending.relayParent.Number
 			}
 
-			fragment, err := inclusionemulator.NewFragment(relayParent, constraints, candidateEntry.candidate)
+			fragment, err := NewFragment(relayParent, constraints, candidateEntry.candidate)
 			if err != nil {
-				fmt.Println("failed to create fragment:", err)
+				logger.Warnf("failed to create fragment: %s", err.Error())
 				continue
 			}
 
@@ -1122,13 +1107,13 @@ func (f *FragmentChain) populateChain(storage *CandidateStorage) {
 		cumulativeModifications.Stack(bestCandidate.fragment.ConstraintModifications())
 
 		// update the earliest relay parent
-		earliestRelayParent = &inclusionemulator.RelayChainBlockInfo{
+		earliestRelayParent = &RelayChainBlockInfo{
 			Hash:        bestCandidate.fragment.RelayParent().Hash,
 			Number:      bestCandidate.fragment.RelayParent().Number,
 			StorageRoot: bestCandidate.fragment.RelayParent().StorageRoot,
 		}
 
-		node := &FragmentNode{
+		node := &fragmentNode{
 			fragment:                bestCandidate.fragment,
 			candidateHash:           bestCandidate.candidateHash,
 			parentHeadDataHash:      bestCandidate.parentHeadDataHash,
@@ -1143,19 +1128,19 @@ func (f *FragmentChain) populateChain(storage *CandidateStorage) {
 
 // checkCyclesOrInvalidTree checks whether a candidate outputting this head data would
 // introduce a cycle or multiple paths to the same state. Trivial 0-length cycles are
-// checked  in `NewCandidateEntry`.
-func (f *FragmentChain) checkCyclesOrInvalidTree(outputHeadDataHash common.Hash) error {
+// checked  in `newCandidateEntry`.
+func (f *fragmentChain) checkCyclesOrInvalidTree(outputHeadDataHash common.Hash) error {
 	// this should catch a cycle where this candidate would point back to the parent
 	// of some candidate in the chain
 	_, ok := f.bestChain.byParentHead[outputHeadDataHash]
 	if ok {
-		return ErrCycle
+		return errCycle
 	}
 
 	// multiple paths to the same state, which cannot happen for a chain
 	_, ok = f.bestChain.byOutputHead[outputHeadDataHash]
 	if ok {
-		return ErrMultiplePaths
+		return errMultiplePaths
 	}
 
 	return nil
@@ -1165,8 +1150,8 @@ func (f *FragmentChain) checkCyclesOrInvalidTree(outputHeadDataHash common.Hash)
 // `parent_head_hash`. If the `parent_head_hash` is exactly the required parent of the base
 // constraints (builds on the latest included candidate), revert the entire chain.
 // Return false if we couldn't find the parent head hash
-func (f *FragmentChain) revertTo(parentHeadDataHash common.Hash) bool {
-	var removedItems []*FragmentNode = nil
+func (f *fragmentChain) revertTo(parentHeadDataHash common.Hash) bool {
+	var removedItems []*fragmentNode = nil
 
 	requiredParentHash, err := f.scope.baseConstraints.RequiredParent.Hash()
 	if err != nil {
@@ -1188,7 +1173,7 @@ func (f *FragmentChain) revertTo(parentHeadDataHash common.Hash) bool {
 	// Even if it's empty, we need to return true, because we'll be able to add a new candidate
 	// to the chain.
 	for _, node := range removedItems {
-		_ = f.unconnected.addCandidateEntry(NewCandidateEntryFromFragment(node))
+		_ = f.unconnected.addCandidateEntry(newCandidateEntryFromFragment(node))
 	}
 
 	return true

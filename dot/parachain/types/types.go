@@ -747,11 +747,13 @@ type Subsystem interface {
 	Stop()
 }
 
+// Present is a variant of UpgradeRestriction enumerator that signals
+// a upgrade restriction is present and there are no details about its
+// specifics nor how long it could last
 type Present struct{}
 
 // UpgradeRestriction a possible restriction that prevents a parachain
 // from performing an upgrade
-// TODO: should be scale encoded/decoded
 type UpgradeRestriction struct {
 	inner any
 }

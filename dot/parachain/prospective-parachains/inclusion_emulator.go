@@ -1,4 +1,4 @@
-package inclusionemulator
+package prospectiveparachains
 
 import (
 	"bytes"
@@ -17,7 +17,6 @@ import (
 // without pinning it to a particular session. For example, commitments are
 // represented here, but the erasure-root is not. This means that, prospective
 // candidates are not correlated to any session in particular.
-// TODO: should we have a specialized struct to simulate an Arc<ProspectiveCandidate>?
 type ProspectiveCandidate struct {
 	Commitments             parachaintypes.CandidateCommitments
 	PersistedValidationData parachaintypes.PersistedValidationData
@@ -48,7 +47,8 @@ type ErrHrmpMessagesOverflow struct {
 }
 
 func (e *ErrHrmpMessagesOverflow) Error() string {
-	return fmt.Sprintf("HrmpMessagesOverflow(ParaId: %d, MessagesRemaining: %d, MessagesSubmitted: %d)", e.paraID, e.messagesRemaining, e.messagesSubmitted)
+	return fmt.Sprintf("HrmpMessagesOverflow(ParaId: %d, MessagesRemaining: %d, MessagesSubmitted: %d)",
+		e.paraID, e.messagesRemaining, e.messagesSubmitted)
 }
 
 type ErrHrmpBytesOverflow struct {
@@ -58,7 +58,8 @@ type ErrHrmpBytesOverflow struct {
 }
 
 func (e *ErrHrmpBytesOverflow) Error() string {
-	return fmt.Sprintf("HrmpBytesOverflow(ParaId: %d, BytesRemaining: %d, BytesSubmitted: %d)", e.paraID, e.bytesRemaining, e.bytesSubmitted)
+	return fmt.Sprintf("HrmpBytesOverflow(ParaId: %d, BytesRemaining: %d, BytesSubmitted: %d)",
+		e.paraID, e.bytesRemaining, e.bytesSubmitted)
 }
 
 type ErrUmpMessagesOverflow struct {
@@ -67,7 +68,8 @@ type ErrUmpMessagesOverflow struct {
 }
 
 func (e *ErrUmpMessagesOverflow) Error() string {
-	return fmt.Sprintf("UmpMessagesOverflow(MessagesRemaining: %d, MessagesSubmitted: %d)", e.messagesRemaining, e.messagesSubmitted)
+	return fmt.Sprintf("UmpMessagesOverflow(MessagesRemaining: %d, MessagesSubmitted: %d)",
+		e.messagesRemaining, e.messagesSubmitted)
 }
 
 type ErrUmpBytesOverflow struct {
@@ -85,7 +87,8 @@ type ErrDmpMessagesUnderflow struct {
 }
 
 func (e *ErrDmpMessagesUnderflow) Error() string {
-	return fmt.Sprintf("DmpMessagesUnderflow(MessagesRemaining: %d, MessagesProcessed: %d)", e.messagesRemaining, e.messagesProcessed)
+	return fmt.Sprintf("DmpMessagesUnderflow(MessagesRemaining: %d, MessagesProcessed: %d)",
+		e.messagesRemaining, e.messagesProcessed)
 }
 
 var (
@@ -101,15 +104,6 @@ type ErrValidationCodeMismatch struct {
 
 func (e *ErrValidationCodeMismatch) Error() string {
 	return fmt.Sprintf("ValidationCodeMismatch(Expected: %v, Got: %v)", e.expected, e.got)
-}
-
-type ErrPersistedValidationDataMismatch struct {
-	expected parachaintypes.PersistedValidationData
-	got      parachaintypes.PersistedValidationData
-}
-
-func (e *ErrPersistedValidationDataMismatch) Error() string {
-	return fmt.Sprintf("PersistedValidationDataMismatch(Expected: %v, Got: %v)", e.expected, e.got)
 }
 
 type ErrOutputsInvalid struct {
@@ -144,7 +138,8 @@ type ErrUmpMessagesPerCandidateOverflow struct {
 }
 
 func (e *ErrUmpMessagesPerCandidateOverflow) Error() string {
-	return fmt.Sprintf("UmpMessagesPerCandidateOverflow(MessagesAllowed: %d, MessagesSubmitted: %d)", e.messagesAllowed, e.messagesSubmitted)
+	return fmt.Sprintf("UmpMessagesPerCandidateOverflow(MessagesAllowed: %d, MessagesSubmitted: %d)",
+		e.messagesAllowed, e.messagesSubmitted)
 }
 
 type ErrHrmpMessagesPerCandidateOverflow struct {
@@ -153,7 +148,8 @@ type ErrHrmpMessagesPerCandidateOverflow struct {
 }
 
 func (e *ErrHrmpMessagesPerCandidateOverflow) Error() string {
-	return fmt.Sprintf("HrmpMessagesPerCandidateOverflow(MessagesAllowed: %d, MessagesSubmitted: %d)", e.messagesAllowed, e.messagesSubmitted)
+	return fmt.Sprintf("HrmpMessagesPerCandidateOverflow(MessagesAllowed: %d, MessagesSubmitted: %d)",
+		e.messagesAllowed, e.messagesSubmitted)
 }
 
 type ErrHrmpMessagesDescendingOrDuplicate struct {
@@ -440,7 +436,7 @@ func (f *Fragment) ConstraintModifications() *ConstraintModifications {
 // NewFragment creates a new Fragment. This fails if the fragment isnt in line
 // with the operating constraints. That is, either its inputs or outputs fail
 // checks against the constraints.
-// This does not check that the collator signature is valid or wheter the PoV is
+// This does not check that the collator signature is valid or whether the PoV is
 // small enough.
 func NewFragment(
 	relayParent *RelayChainBlockInfo,
@@ -556,7 +552,8 @@ func skipUmpSignals(upwardMessages []parachaintypes.UpwardMessage) iter.Seq[para
 					return
 				}
 			}
-			return
+
+			return //nolint:staticcheck
 		}
 	}
 }
@@ -573,14 +570,12 @@ func validateAgainstConstraints(
 		ParentHead:             constraints.RequiredParent,
 		RelayParentNumber:      uint32(relayParent.Number),
 		RelayParentStorageRoot: relayParent.StorageRoot,
-		MaxPovSize:             uint32(constraints.MaxPoVSize),
+		MaxPovSize:             constraints.MaxPoVSize,
 	}
 
 	if !expectedPVD.Equal(persistedValidationData) {
-		return &ErrPersistedValidationDataMismatch{
-			expected: expectedPVD,
-			got:      persistedValidationData,
-		}
+		return fmt.Errorf("%w, expected: %v, got: %v",
+			errPersistedValidationDataMismatch, expectedPVD, persistedValidationData)
 	}
 
 	if constraints.ValidationCodeHash != validationCodeHash {

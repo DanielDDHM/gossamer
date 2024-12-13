@@ -3,7 +3,10 @@
 
 package parachaintypes
 
-import "maps"
+import (
+	"maps"
+	"slices"
+)
 
 // AsyncBackingParams contains the parameters for the async backing.
 type AsyncBackingParams struct {
@@ -86,6 +89,7 @@ func (c *Constraints) Clone() *Constraints {
 			ValidationCodeHash: c.FutureValidationCode.ValidationCodeHash,
 		}
 	}
+
 	return &Constraints{
 		MinRelayParentNumber:  c.MinRelayParentNumber,
 		MaxPoVSize:            c.MaxPoVSize,
@@ -93,9 +97,9 @@ func (c *Constraints) Clone() *Constraints {
 		UmpRemaining:          c.UmpRemaining,
 		UmpRemainingBytes:     c.UmpRemainingBytes,
 		MaxUmpNumPerCandidate: c.MaxUmpNumPerCandidate,
-		DmpRemainingMessages:  append([]uint(nil), c.DmpRemainingMessages...),
+		DmpRemainingMessages:  slices.Clone(c.DmpRemainingMessages),
 		HrmpInbound: InboundHrmpLimitations{
-			ValidWatermarks: append([]uint(nil), c.HrmpInbound.ValidWatermarks...),
+			ValidWatermarks: slices.Clone(c.HrmpInbound.ValidWatermarks),
 		},
 		HrmpChannelsOut:        maps.Clone(c.HrmpChannelsOut),
 		MaxHrmpNumPerCandidate: c.MaxHrmpNumPerCandidate,
