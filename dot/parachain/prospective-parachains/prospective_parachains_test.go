@@ -12,7 +12,6 @@ type MockFragmentChain struct {
 	fragmentChain
 }
 
-// FindBackableChain simulates the behavior of the real method
 func (m *MockFragmentChain) FindBackableChain(ancestors Ancestors, qty uint32) []parachaintypes.CandidateHashAndRelayParent {
 	return []parachaintypes.CandidateHashAndRelayParent{
 		{
@@ -27,7 +26,6 @@ func (m *MockFragmentChain) FindBackableChain(ancestors Ancestors, qty uint32) [
 }
 
 func TestGetBackableCandidates(t *testing.T) {
-	// Mock data for testing
 	relayParentHash := common.Hash{0x01}
 	paraId := parachaintypes.ParaID(1)
 	requestedQty := uint32(2)
@@ -37,10 +35,8 @@ func TestGetBackableCandidates(t *testing.T) {
 	}
 	responseChan := make(chan []parachaintypes.CandidateHashAndRelayParent, 1)
 
-	// Create a mock fragment chain
 	mockFragmentChain := &MockFragmentChain{}
 
-	// Setup the ProspectiveParachains structure
 	pp := &ProspectiveParachains{
 		View: &View{
 			ActiveLeaves: map[common.Hash]bool{

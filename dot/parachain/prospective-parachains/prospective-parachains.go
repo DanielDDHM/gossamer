@@ -104,7 +104,11 @@ func (pp *ProspectiveParachains) getBackableCandidates(
 
 	// Check if the relay parent is active
 	if _, exists := pp.View.ActiveLeaves[relayParentHash]; !exists {
-		logger.Debugf("Requested backable candidates for inactive relay-parent. RelayParentHash: %v, ParaId: %v", relayParentHash, paraId)
+		logger.Debugf(
+			"Requested backable candidates for inactive relay-parent. "+
+				"RelayParentHash: %v, ParaId: %v",
+			relayParentHash, paraId,
+		)
 		responseChan <- []parachaintypes.CandidateHashAndRelayParent{}
 		return
 	}
@@ -112,7 +116,11 @@ func (pp *ProspectiveParachains) getBackableCandidates(
 	// Retrieve data for the relay parent
 	data, ok := pp.View.PerRelayParent[relayParentHash]
 	if !ok {
-		logger.Debugf("Requested backable candidates for nonexistent relay-parent. RelayParentHash: %v, ParaId: %v", relayParentHash, paraId)
+		logger.Debugf(
+			"Requested backable candidates for nonexistent relay-parent. "+
+				"RelayParentHash: %v, ParaId: %v",
+			relayParentHash, paraId,
+		)
 		responseChan <- []parachaintypes.CandidateHashAndRelayParent{}
 		return
 	}
@@ -120,7 +128,11 @@ func (pp *ProspectiveParachains) getBackableCandidates(
 	// Retrieve the fragment chain for the ParaID
 	chain, ok := data.FragmentChains[paraId]
 	if !ok {
-		logger.Debugf("Requested backable candidates for inactive ParaID. RelayParentHash: %v, ParaId: %v", relayParentHash, paraId)
+		logger.Debugf(
+			"Requested backable candidates for inactive ParaID. "+
+				"RelayParentHash: %v, ParaId: %v",
+			relayParentHash, paraId,
+		)
 		responseChan <- []parachaintypes.CandidateHashAndRelayParent{}
 		return
 	}
@@ -128,12 +140,18 @@ func (pp *ProspectiveParachains) getBackableCandidates(
 	// Retrieve backable candidates from the fragment chain
 	backableCandidates := chain.FindBackableChain(ancestors, requestedQty)
 	if len(backableCandidates) == 0 {
-		logger.Tracef("No backable candidates found. RelayParentHash: %v, ParaId: %v, Ancestors: %v", relayParentHash, paraId, ancestors)
+		logger.Tracef(
+			"No backable candidates found. RelayParentHash: %v, ParaId: %v, Ancestors: %v",
+			relayParentHash, paraId, ancestors,
+		)
 		responseChan <- []parachaintypes.CandidateHashAndRelayParent{}
 		return
 	}
 
-	logger.Tracef("Found backable candidates: %v. RelayParentHash: %v, ParaId: %v, Ancestors: %v", backableCandidates, relayParentHash, paraId, ancestors)
+	logger.Tracef(
+		"Found backable candidates: %v. RelayParentHash: %v, ParaId: %v, Ancestors: %v",
+		backableCandidates, relayParentHash, paraId, ancestors,
+	)
 
 	// Convert backable candidates to the expected response format
 	candidateHashes := make([]parachaintypes.CandidateHashAndRelayParent, len(backableCandidates))
