@@ -12,14 +12,21 @@ type MockFragmentChain struct {
 	fragmentChain
 }
 
-func (m *MockFragmentChain) FindBackableChain(ancestors Ancestors, qty uint32) []parachaintypes.CandidateHashAndRelayParent {
+func (m *MockFragmentChain) FindBackableChain(
+	ancestors Ancestors,
+	qty uint32,
+) []parachaintypes.CandidateHashAndRelayParent {
 	return []parachaintypes.CandidateHashAndRelayParent{
 		{
-			CandidateHash:        parachaintypes.CandidateHash{Value: common.Hash{0x10}},
+			CandidateHash: parachaintypes.CandidateHash{
+				Value: common.Hash{0x10},
+			},
 			CandidateRelayParent: common.Hash{0x20},
 		},
 		{
-			CandidateHash:        parachaintypes.CandidateHash{Value: common.Hash{0x11}},
+			CandidateHash: parachaintypes.CandidateHash{
+				Value: common.Hash{0x11},
+			},
 			CandidateRelayParent: common.Hash{0x21},
 		},
 	}
