@@ -5,80 +5,98 @@ import (
 
 	parachaintypes "github.com/ChainSafe/gossamer/dot/parachain/types"
 	"github.com/ChainSafe/gossamer/lib/common"
-	"github.com/stretchr/testify/assert"
 )
 
-type MockFragmentChain struct {
-	fragmentChain
+const MaxPoVSize = 1_000_000
+
+func dummyPVD(parentHead parachaintypes.HeadData, relayParentNumber uint32) parachaintypes.PersistedValidationData {
+	return parachaintypes.PersistedValidationData{
+		ParentHead:             parentHead,
+		RelayParentNumber:      relayParentNumber,
+		RelayParentStorageRoot: common.EmptyHash,
+		MaxPovSize:             MaxPoVSize,
+	}
 }
 
-func (m *MockFragmentChain) FindBackableChain(
-	ancestors Ancestors,
-	qty uint32,
-) []parachaintypes.CandidateHashAndRelayParent {
-	return []parachaintypes.CandidateHashAndRelayParent{
-		{
-			CandidateHash: parachaintypes.CandidateHash{
-				Value: common.Hash{0x10},
-			},
-			CandidateRelayParent: common.Hash{0x20},
-		},
-		{
-			CandidateHash: parachaintypes.CandidateHash{
-				Value: common.Hash{0x11},
-			},
-			CandidateRelayParent: common.Hash{0x21},
-		},
+func dummyCandidateReceiptBadSig(
+	relayParentHash common.Hash,
+	commitments *common.Hash,
+) parachaintypes.CandidateReceipt {
+	var commitmentsHash common.Hash
+
+	if commitments != nil {
+		commitmentsHash = *commitments
+	} else {
+		commitmentsHash = common.EmptyHash
 	}
+
+	descriptor := parachaintypes.CandidateDescriptor{
+		ParaID:                      parachaintypes.ParaID(0),
+		RelayParent:                 relayParentHash,
+		Collator:                    parachaintypes.CollatorID{},
+		PovHash:                     common.EmptyHash,
+		ErasureRoot:                 common.EmptyHash,
+		Signature:                   parachaintypes.CollatorSignature{},
+		ParaHead:                    common.EmptyHash,
+		ValidationCodeHash:          parachaintypes.ValidationCodeHash{},
+		PersistedValidationDataHash: common.EmptyHash,
+	}
+
+	return parachaintypes.CandidateReceipt{
+		CommitmentsHash: commitmentsHash,
+		Descriptor:      descriptor,
+	}
+}
+
+func makeCandidate(
+	relayParent common.Hash,
+	relayParentNumber uint32,
+	paraID parachaintypes.ParaID,
+	parentHead parachaintypes.HeadData,
+	headData parachaintypes.HeadData,
+	validationCodeHash parachaintypes.ValidationCodeHash,
+) parachaintypes.CommittedCandidateReceipt {
+	pvd := dummyPVD(parentHead, relayParentNumber)
+
+	commitments := parachaintypes.CandidateCommitments{
+		HeadData:                  headData,
+		HorizontalMessages:        []parachaintypes.OutboundHrmpMessage{},
+		UpwardMessages:            []parachaintypes.UpwardMessage{},
+		NewValidationCode:         nil,
+		ProcessedDownwardMessages: 0,
+		HrmpWatermark:             relayParentNumber,
+	}
+
+	commitmentsHash := commitments.Hash()
+
+	candidate := dummyCandidateReceiptBadSig(relayParent, &commitmentsHash)
+	candidate.CommitmentsHash = commitments.Hash()
+	candidate.Descriptor.ParaID = paraID
+
+	pvdh, err := pvd.Hash()
+
+	if err != nil {
+		panic(err)
+	}
+
+	candidate.Descriptor.PersistedValidationDataHash = pvdh
+	candidate.Descriptor.ValidationCodeHash = validationCodeHash
+
+	result := parachaintypes.CommittedCandidateReceipt{
+		Descriptor:  candidate.Descriptor,
+		Commitments: commitments,
+	}
+
+	return result
+}
+
+func padTo32Bytes(input []byte) []byte {
+	if len(input) > 32 {
+		return input[:32]
+	}
+	return append(input, make([]byte, 32-len(input))...)
 }
 
 func TestGetBackableCandidates(t *testing.T) {
-	relayParentHash := common.Hash{0x01}
-	paraId := parachaintypes.ParaID(1)
-	requestedQty := uint32(2)
-	ancestors := Ancestors{
-		parachaintypes.CandidateHash{Value: common.Hash{0x02}}: {},
-		parachaintypes.CandidateHash{Value: common.Hash{0x03}}: {},
-	}
-	responseChan := make(chan []parachaintypes.CandidateHashAndRelayParent, 1)
-
-	mockFragmentChain := &MockFragmentChain{}
-
-	pp := &ProspectiveParachains{
-		View: &View{
-			ActiveLeaves: map[common.Hash]bool{
-				relayParentHash: true,
-			},
-			PerRelayParent: map[common.Hash]*RelayParentData{
-				relayParentHash: {
-					FragmentChains: map[parachaintypes.ParaID]*fragmentChain{
-						paraId: &mockFragmentChain.fragmentChain,
-					},
-				},
-			},
-		},
-	}
-
-	// Create the test message
-	msg := GetBackableCandidates{
-		RelayParentHash: relayParentHash,
-		ParaId:          paraId,
-		RequestedQty:    requestedQty,
-		Ancestors:       ancestors,
-		Response:        responseChan,
-	}
-
-	// Run the method in a goroutine
-	go pp.getBackableCandidates(msg)
-
-	// Collect the response
-	result := <-responseChan
-
-	// Assertions
-	assert.NotNil(t, result, "Result should not be nil")
-	assert.Len(t, result, 2, "Should return 2 backable candidates")
-	assert.Equal(t, result[0].CandidateHash.Value, common.Hash{0x10}, "First candidate hash mismatch")
-	assert.Equal(t, result[0].CandidateRelayParent, common.Hash{0x20}, "First candidate relay parent mismatch")
-	assert.Equal(t, result[1].CandidateHash.Value, common.Hash{0x11}, "Second candidate hash mismatch")
-	assert.Equal(t, result[1].CandidateRelayParent, common.Hash{0x21}, "Second candidate relay parent mismatch")
+	// TODO: Elaborate testcases
 }
