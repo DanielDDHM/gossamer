@@ -17,6 +17,9 @@ var (
 	errParentCandidateNotFound         = errors.New("could not find parent of the candidate")
 	errRelayParentMovedBackwards       = errors.New("relay parent would move backwards from the latest candidate in the chain")     //nolint:lll
 	errPersistedValidationDataMismatch = errors.New("candidate does not match the persisted validation data provided alongside it") //nolint:lll
+	errAppliedNonexistentCodeUpgrade   = errors.New("applied non existent code upgrade")
+	errDmpAdvancementRule              = errors.New("dmp advancement rule")
+	errCodeUpgradeRestricted           = errors.New("code upgrade restricted")
 )
 
 type errRelayParentPrecedesCandidatePendingAvailability struct {
@@ -71,11 +74,141 @@ func (e errRelayParentNotInScope) Error() string {
 
 type errUnexpectedAncestor struct {
 	// The block number that this error occurred at
-	Number uint
+	number uint
 	// The previous seen block number, which did not match `number`.
-	Prev uint
+	prev uint
 }
 
 func (e errUnexpectedAncestor) Error() string {
-	return fmt.Sprintf("unexpected ancestor %d, expected %d", e.Number, e.Prev)
+	return fmt.Sprintf("unexpected ancestor %d, expected %d", e.number, e.prev)
+}
+
+type errDisallowedHrmpWatermark struct {
+	BlockNumber uint
+}
+
+func (e *errDisallowedHrmpWatermark) Error() string {
+	return fmt.Sprintf("DisallowedHrmpWatermark(BlockNumber: %d)", e.BlockNumber)
+}
+
+type errNoSuchHrmpChannel struct {
+	paraID parachaintypes.ParaID
+}
+
+func (e *errNoSuchHrmpChannel) Error() string {
+	return fmt.Sprintf("NoSuchHrmpChannel(ParaId: %d)", e.paraID)
+}
+
+type errHrmpMessagesOverflow struct {
+	paraID            parachaintypes.ParaID
+	messagesRemaining uint32
+	messagesSubmitted uint32
+}
+
+func (e *errHrmpMessagesOverflow) Error() string {
+	return fmt.Sprintf("HrmpMessagesOverflow(ParaId: %d, MessagesRemaining: %d, MessagesSubmitted: %d)",
+		e.paraID, e.messagesRemaining, e.messagesSubmitted)
+}
+
+type errHrmpBytesOverflow struct {
+	paraID         parachaintypes.ParaID
+	bytesRemaining uint32
+	bytesSubmitted uint32
+}
+
+func (e *errHrmpBytesOverflow) Error() string {
+	return fmt.Sprintf("HrmpBytesOverflow(ParaId: %d, BytesRemaining: %d, BytesSubmitted: %d)",
+		e.paraID, e.bytesRemaining, e.bytesSubmitted)
+}
+
+type errUmpMessagesOverflow struct {
+	messagesRemaining uint32
+	messagesSubmitted uint32
+}
+
+func (e *errUmpMessagesOverflow) Error() string {
+	return fmt.Sprintf("UmpMessagesOverflow(MessagesRemaining: %d, MessagesSubmitted: %d)",
+		e.messagesRemaining, e.messagesSubmitted)
+}
+
+type errUmpBytesOverflow struct {
+	bytesRemaining uint32
+	bytesSubmitted uint32
+}
+
+func (e *errUmpBytesOverflow) Error() string {
+	return fmt.Sprintf("UmpBytesOverflow(BytesRemaining: %d, BytesSubmitted: %d)", e.bytesRemaining, e.bytesSubmitted)
+}
+
+type errDmpMessagesUnderflow struct {
+	messagesRemaining uint32
+	messagesProcessed uint32
+}
+
+func (e *errDmpMessagesUnderflow) Error() string {
+	return fmt.Sprintf("DmpMessagesUnderflow(MessagesRemaining: %d, MessagesProcessed: %d)",
+		e.messagesRemaining, e.messagesProcessed)
+}
+
+type errValidationCodeMismatch struct {
+	expected parachaintypes.ValidationCodeHash
+	got      parachaintypes.ValidationCodeHash
+}
+
+func (e *errValidationCodeMismatch) Error() string {
+	return fmt.Sprintf("ValidationCodeMismatch(Expected: %v, Got: %v)", e.expected, e.got)
+}
+
+type errOutputsInvalid struct {
+	ModificationError error
+}
+
+func (e *errOutputsInvalid) Error() string {
+	return fmt.Sprintf("OutputsInvalid(ModificationError: %v)", e.ModificationError)
+}
+
+type errCodeSizeTooLarge struct {
+	maxAllowed uint32
+	newSize    uint32
+}
+
+func (e *errCodeSizeTooLarge) Error() string {
+	return fmt.Sprintf("CodeSizeTooLarge(MaxAllowed: %d, NewSize: %d)", e.maxAllowed, e.newSize)
+}
+
+type errRelayParentTooOld struct {
+	minAllowed uint
+	current    uint
+}
+
+func (e *errRelayParentTooOld) Error() string {
+	return fmt.Sprintf("RelayParentTooOld(MinAllowed: %d, Current: %d)", e.minAllowed, e.current)
+}
+
+type errUmpMessagesPerCandidateOverflow struct {
+	messagesAllowed   uint32
+	messagesSubmitted uint32
+}
+
+func (e *errUmpMessagesPerCandidateOverflow) Error() string {
+	return fmt.Sprintf("UmpMessagesPerCandidateOverflow(MessagesAllowed: %d, MessagesSubmitted: %d)",
+		e.messagesAllowed, e.messagesSubmitted)
+}
+
+type errHrmpMessagesPerCandidateOverflow struct {
+	messagesAllowed   uint32
+	messagesSubmitted uint32
+}
+
+func (e *errHrmpMessagesPerCandidateOverflow) Error() string {
+	return fmt.Sprintf("HrmpMessagesPerCandidateOverflow(MessagesAllowed: %d, MessagesSubmitted: %d)",
+		e.messagesAllowed, e.messagesSubmitted)
+}
+
+type errHrmpMessagesDescendingOrDuplicate struct {
+	index uint
+}
+
+func (e *errHrmpMessagesDescendingOrDuplicate) Error() string {
+	return fmt.Sprintf("HrmpMessagesDescendingOrDuplicate(Index: %d)", e.index)
 }
