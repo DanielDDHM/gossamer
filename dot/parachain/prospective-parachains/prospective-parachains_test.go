@@ -99,12 +99,12 @@ func makeCandidate(
 func TestGetMinimumRelayParents(t *testing.T) {
 	// Setup a mock View with active leaves and relay parent data
 
-	mockRelayParent := RelayChainBlockInfo{
+	mockRelayParent := relayChainBlockInfo{
 		Hash:   common.Hash([]byte("active_hash")),
 		Number: 10,
 	}
 
-	ancestors := []RelayChainBlockInfo{
+	ancestors := []relayChainBlockInfo{
 		{
 			Hash:   common.Hash([]byte("active_hash_7")),
 			Number: 9,
@@ -219,7 +219,7 @@ func TestProspectiveParachains_HandleMinimumRelayParents(t *testing.T) {
 
 	prospectiveParachains := NewProspectiveParachains(subsystemToOverseer)
 
-	relayParent := RelayChainBlockInfo{
+	relayParent := relayChainBlockInfo{
 		Hash:        candidateRelayParent,
 		Number:      0,
 		StorageRoot: common.Hash{0x00},
