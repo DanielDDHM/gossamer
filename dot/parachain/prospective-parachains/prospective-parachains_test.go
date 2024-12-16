@@ -133,7 +133,7 @@ func TestGetMinimumRelayParents(t *testing.T) {
 		activeLeaves: map[common.Hash]bool{
 			common.BytesToHash([]byte("active_hash")): true,
 		},
-		PerRelayParent: map[common.Hash]*RelayParentData{
+		perRelayParent: map[common.Hash]*relayParentData{
 			common.BytesToHash([]byte("active_hash")): {
 				fragmentChains: map[parachaintypes.ParaID]*fragmentChain{
 					parachaintypes.ParaID(1): newFragmentChain(mockScope, newCandidateStorage()),
@@ -175,7 +175,7 @@ func TestGetMinimumRelayParents(t *testing.T) {
 func TestGetMinimumRelayParents_NoActiveLeaves(t *testing.T) {
 	mockView := &View{
 		activeLeaves:   map[common.Hash]bool{},
-		PerRelayParent: map[common.Hash]*RelayParentData{},
+		perRelayParent: map[common.Hash]*relayParentData{},
 	}
 
 	// Initialize ProspectiveParachains with the mock view
@@ -235,7 +235,7 @@ func TestProspectiveParachains_HandleMinimumRelayParents(t *testing.T) {
 	scope, err := newScopeWithAncestors(relayParent, baseConstraints, nil, 10, nil)
 	assert.NoError(t, err)
 
-	prospectiveParachains.View.PerRelayParent[candidateRelayParent] = &RelayParentData{
+	prospectiveParachains.View.perRelayParent[candidateRelayParent] = &relayParentData{
 		fragmentChains: map[parachaintypes.ParaID]*fragmentChain{
 			paraId: newFragmentChain(scope, newCandidateStorage()),
 		},

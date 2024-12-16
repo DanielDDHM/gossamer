@@ -18,10 +18,10 @@ type ProspectiveParachains struct {
 
 type View struct {
 	activeLeaves   map[common.Hash]bool
-	PerRelayParent map[common.Hash]*RelayParentData
+	perRelayParent map[common.Hash]*relayParentData
 }
 
-type RelayParentData struct {
+type relayParentData struct {
 	fragmentChains map[parachaintypes.ParaID]*fragmentChain
 }
 
@@ -102,7 +102,7 @@ func (pp *ProspectiveParachains) getMinimumRelayParents(
 	// Check if the relayChainBlockHash exists in active_leaves
 	if exists := pp.View.activeLeaves[relayChainBlockHash]; exists {
 		// Retrieve data associated with the relayChainBlockHash
-		if leafData, found := pp.View.PerRelayParent[relayChainBlockHash]; found {
+		if leafData, found := pp.View.perRelayParent[relayChainBlockHash]; found {
 			// Iterate over fragment_chains and collect the data
 			for paraID, fragmentChain := range leafData.fragmentChains {
 				result = append(result, ParaIDBlockNumber{
