@@ -17,12 +17,12 @@ type ProspectiveParachains struct {
 }
 
 type View struct {
-	ActiveLeaves   map[common.Hash]bool
-	PerRelayParent map[common.Hash]*RelayParentData
+	activeLeaves   map[common.Hash]bool
+	perRelayParent map[common.Hash]*relayParentData
 }
 
-type RelayParentData struct {
-	FragmentChains map[parachaintypes.ParaID]*fragmentChain
+type relayParentData struct {
+	fragmentChains map[parachaintypes.ParaID]*fragmentChain
 }
 
 // Name returns the name of the subsystem
@@ -68,7 +68,7 @@ func (pp *ProspectiveParachains) processMessage(msg any) {
 	case CandidateBacked:
 		panic("not implemented yet: see issue #4309")
 	case GetBackableCandidates:
-		go pp.getBackableCandidates(msg)
+		pp.getBackableCandidates(msg)
 	case GetHypotheticalMembership:
 		panic("not implemented yet: see issue #4311")
 	case GetMinimumRelayParents:
@@ -103,7 +103,7 @@ func (pp *ProspectiveParachains) getBackableCandidates(
 	responseChan := msg.Response
 
 	// Check if the relay parent is active
-	if _, exists := pp.View.ActiveLeaves[relayParentHash]; !exists {
+	if _, exists := pp.View.activeLeaves[relayParentHash]; !exists {
 		logger.Debugf(
 			"Requested backable candidates for inactive relay-parent. "+
 				"RelayParentHash: %v, ParaId: %v",
@@ -114,7 +114,7 @@ func (pp *ProspectiveParachains) getBackableCandidates(
 	}
 
 	// Retrieve data for the relay parent
-	data, ok := pp.View.PerRelayParent[relayParentHash]
+	data, ok := pp.View.perRelayParent[relayParentHash]
 	if !ok {
 		logger.Debugf(
 			"Requested backable candidates for nonexistent relay-parent. "+
@@ -126,7 +126,7 @@ func (pp *ProspectiveParachains) getBackableCandidates(
 	}
 
 	// Retrieve the fragment chain for the ParaID
-	chain, ok := data.FragmentChains[paraId]
+	chain, ok := data.fragmentChains[paraId]
 	if !ok {
 		logger.Debugf(
 			"Requested backable candidates for inactive ParaID. "+
@@ -138,9 +138,9 @@ func (pp *ProspectiveParachains) getBackableCandidates(
 	}
 
 	// Retrieve backable candidates from the fragment chain
-	backableCandidates := chain.FindBackableChain(ancestors, requestedQty)
+	backableCandidates := chain.findBackableChain(ancestors, requestedQty)
 	if len(backableCandidates) == 0 {
-		logger.Tracef(
+		logger.Debugf(
 			"No backable candidates found. RelayParentHash: %v, ParaId: %v, Ancestors: %v",
 			relayParentHash, paraId, ancestors,
 		)
@@ -148,7 +148,7 @@ func (pp *ProspectiveParachains) getBackableCandidates(
 		return
 	}
 
-	logger.Tracef(
+	logger.Debugf(
 		"Found backable candidates: %v. RelayParentHash: %v, ParaId: %v, Ancestors: %v",
 		backableCandidates, relayParentHash, paraId, ancestors,
 	)
