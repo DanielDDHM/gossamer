@@ -286,3 +286,63 @@ func TestGetBackableCandidates(t *testing.T) {
 		t.Fatal("No response received from getBackableCandidates")
 	}
 }
+
+func TestGetBackableCandidates_NoCandidatesFound(t *testing.T) {
+	candidateRelayParent := common.Hash{0x01}
+	paraId := parachaintypes.ParaID(1)
+
+	mockRelayParent := relayChainBlockInfo{
+		Hash:   candidateRelayParent,
+		Number: 10,
+	}
+
+	ancestors := []relayChainBlockInfo{}
+
+	baseConstraints := &parachaintypes.Constraints{
+		MinRelayParentNumber: 5,
+	}
+
+	mockScope, err := newScopeWithAncestors(mockRelayParent, baseConstraints, nil, 10, ancestors)
+	assert.NoError(t, err)
+
+	candidateStorage := newCandidateStorage()
+
+	mockView := &View{
+		activeLeaves: map[common.Hash]bool{
+			candidateRelayParent: true,
+		},
+		perRelayParent: map[common.Hash]*relayParentData{
+			candidateRelayParent: {
+				fragmentChains: map[parachaintypes.ParaID]*fragmentChain{
+					paraId: newFragmentChain(mockScope, candidateStorage),
+				},
+			},
+		},
+	}
+
+	pp := &ProspectiveParachains{
+		View: mockView,
+	}
+
+	responseChan := make(chan []parachaintypes.CandidateHashAndRelayParent, 1)
+
+	mockAncestors := Ancestors{}
+
+	msg := GetBackableCandidates{
+		RelayParentHash: candidateRelayParent,
+		ParaId:          paraId,
+		RequestedQty:    3,
+		Ancestors:       mockAncestors,
+		Response:        responseChan,
+	}
+
+	pp.getBackableCandidates(msg)
+
+	select {
+	case result := <-responseChan:
+		assert.NotNil(t, result, "Result should not be nil")
+		assert.Equal(t, 0, len(result), "Expected 0 candidates to be returned")
+	default:
+		t.Fatal("No response received from getBackableCandidates")
+	}
+}
