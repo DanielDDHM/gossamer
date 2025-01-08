@@ -107,7 +107,7 @@ func (pp *ProspectiveParachains) getMinimumRelayParents(
 			for paraID, fragmentChain := range leafData.fragmentChains {
 				result = append(result, ParaIDBlockNumber{
 					ParaId:      paraID,
-					BlockNumber: parachaintypes.BlockNumber(fragmentChain.scope.relayParent.Number),
+					BlockNumber: fragmentChain.scope.relayParent.Number,
 				})
 			}
 		}
