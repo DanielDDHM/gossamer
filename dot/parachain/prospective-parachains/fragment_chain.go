@@ -272,7 +272,7 @@ type scope struct {
 	relayParent relayChainBlockInfo
 	// the other relay parents candidates are allowed to build upon,
 	// mapped by the block number
-	ancestors *btree.Map[uint, relayChainBlockInfo]
+	ancestors *btree.Map[parachaintypes.BlockNumber, relayChainBlockInfo]
 	// the other relay parents candidates are allowed to build upon,
 	// mapped by hash
 	ancestorsByHash map[common.Hash]relayChainBlockInfo
@@ -301,7 +301,7 @@ func newScopeWithAncestors(
 	maxDepth uint,
 	ancestors []relayChainBlockInfo,
 ) (*scope, error) {
-	ancestorsMap := btree.NewMap[uint, relayChainBlockInfo](100)
+	ancestorsMap := btree.NewMap[parachaintypes.BlockNumber, relayChainBlockInfo](100)
 	ancestorsByHash := make(map[common.Hash]relayChainBlockInfo)
 
 	prev := relayParent.Number
@@ -534,7 +534,8 @@ func (f *fragmentChain) bestChainLen() int {
 	return len(f.bestChain.chain)
 }
 
-func (f *fragmentChain) containsUnconnectedCandidate(candidateHash parachaintypes.CandidateHash) bool {
+
+func (f *fragmentChain) containsUnconnectedCandidate(candidateHash parachaintypes.CandidateHash) bool { //nolint:unused
 	_, ok := f.unconnected.byCandidateHash[candidateHash]
 	return ok
 }
@@ -548,7 +549,7 @@ func (f *fragmentChain) bestChainVec() (hashes []parachaintypes.CandidateHash) {
 	return hashes
 }
 
-func (f *fragmentChain) isCandidateBacked(hash parachaintypes.CandidateHash) bool {
+func (f *fragmentChain) isCandidateBacked(hash parachaintypes.CandidateHash) bool { //nolint:unused
 	if _, ok := f.bestChain.candidates[hash]; ok {
 		return true
 	}
@@ -603,7 +604,7 @@ func (f *fragmentChain) canAddCandidateAsPotential(entry *candidateEntry) error 
 // tryAddingSecondedCandidate tries to add a candidate as a seconded candidate, if the
 // candidate has potential. It will never be added to the chain directly in the seconded
 // state, it will only be part of the unconnected storage
-func (f *fragmentChain) tryAddingSecondedCandidate(entry *candidateEntry) error {
+func (f *fragmentChain) tryAddingSecondedCandidate(entry *candidateEntry) error { //nolint:unused
 	if entry.state == backed {
 		return errIntroduceBackedCandidate
 	}
@@ -617,7 +618,7 @@ func (f *fragmentChain) tryAddingSecondedCandidate(entry *candidateEntry) error 
 }
 
 // getHeadDataByHash tries to get the full head data associated with this hash
-func (f *fragmentChain) getHeadDataByHash(headDataHash common.Hash) (*parachaintypes.HeadData, error) {
+func (f *fragmentChain) getHeadDataByHash(headDataHash common.Hash) (*parachaintypes.HeadData, error) { //nolint:unused
 	reqParent := f.scope.baseConstraints.RequiredParent
 	reqParentHash, err := reqParent.Hash()
 	if err != nil {
@@ -817,7 +818,7 @@ func (f *fragmentChain) checkPotential(candidate *candidateEntry) error {
 	// Try seeing if the parent candidate is in the current chain or if it is the latest
 	// included candidate. If so, get the constraints the candidate must satisfy
 	var constraints *parachaintypes.Constraints
-	var maybeMinRelayParentNumber *uint
+	var maybeMinRelayParentNumber *parachaintypes.BlockNumber
 
 	requiredParentHash, err := f.scope.baseConstraints.RequiredParent.Hash()
 	if err != nil {
@@ -1010,7 +1011,7 @@ func (f *fragmentChain) populateChain(storage *candidateStorage) {
 			// 5. candidate outputs fulfil constraints
 
 			var relayParent *relayChainBlockInfo
-			var minRelayParent uint
+			var minRelayParent parachaintypes.BlockNumber
 
 			pending := f.scope.getPendingAvailability(candidateEntry.candidateHash)
 			if pending != nil {
