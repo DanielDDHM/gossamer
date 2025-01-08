@@ -13,10 +13,10 @@ var logger = log.NewFromGlobal(log.AddContext("pkg", "prospective_parachains"), 
 
 type ProspectiveParachains struct {
 	SubsystemToOverseer chan<- any
-	View                *View
+	View                *view
 }
 
-type View struct {
+type view struct {
 	activeLeaves   map[common.Hash]bool
 	perRelayParent map[common.Hash]*relayParentData
 }

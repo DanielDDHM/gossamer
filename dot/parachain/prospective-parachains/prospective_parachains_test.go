@@ -161,17 +161,13 @@ func TestGetBackableCandidates(t *testing.T) {
 	assert.NoError(t, err)
 
 	parentHash1, err := parentHead1.Hash()
-	if err != nil {
-		t.Fatalf("failed to hash parentHead2: %v", err)
-	}
+	assert.NoError(t, err)
 
 	outputHash1, err := headData1.Hash()
-	if err != nil {
-		t.Fatalf("failed to hash headData2: %v", err)
-	}
+	assert.NoError(t, err)
 
 	candidateStorage := newCandidateStorage()
-	_ = candidateStorage.addCandidateEntry(&candidateEntry{
+	err = candidateStorage.addCandidateEntry(&candidateEntry{
 		candidateHash:      parachaintypes.CandidateHash{Value: candidateRelayParent1},
 		parentHeadDataHash: parentHash1,
 		outputHeadDataHash: outputHash1,
@@ -184,18 +180,15 @@ func TestGetBackableCandidates(t *testing.T) {
 		},
 		state: backed,
 	})
+	assert.NoError(t, err)
 
 	parentHash2, err := parentHead2.Hash()
-	if err != nil {
-		t.Fatalf("failed to hash parentHead2: %v", err)
-	}
+	assert.NoError(t, err)
 
 	outputHash2, err := headData2.Hash()
-	if err != nil {
-		t.Fatalf("failed to hash headData2: %v", err)
-	}
+	assert.NoError(t, err)
 
-	_ = candidateStorage.addCandidateEntry(&candidateEntry{
+	err = candidateStorage.addCandidateEntry(&candidateEntry{
 		candidateHash:      parachaintypes.CandidateHash{Value: candidateRelayParent2},
 		parentHeadDataHash: parentHash2,
 		outputHeadDataHash: outputHash2,
@@ -208,18 +201,15 @@ func TestGetBackableCandidates(t *testing.T) {
 		},
 		state: backed,
 	})
+	assert.NoError(t, err)
 
 	parentHash3, err := parentHead3.Hash()
-	if err != nil {
-		t.Fatalf("failed to hash parentHead2: %v", err)
-	}
+	assert.NoError(t, err)
 
 	outputHash3, err := headData3.Hash()
-	if err != nil {
-		t.Fatalf("failed to hash headData2: %v", err)
-	}
+	assert.NoError(t, err)
 
-	_ = candidateStorage.addCandidateEntry(&candidateEntry{
+	err = candidateStorage.addCandidateEntry(&candidateEntry{
 		candidateHash:      parachaintypes.CandidateHash{Value: candidateRelayParent3},
 		parentHeadDataHash: parentHash3,
 		outputHeadDataHash: outputHash3,
@@ -232,117 +222,131 @@ func TestGetBackableCandidates(t *testing.T) {
 		},
 		state: backed,
 	})
-
-	mockView := &View{
-		activeLeaves: map[common.Hash]bool{
-			candidateRelayParent1: true,
-		},
-		perRelayParent: map[common.Hash]*relayParentData{
-			candidateRelayParent1: {
-				fragmentChains: map[parachaintypes.ParaID]*fragmentChain{
-					paraId: newFragmentChain(mockScope, candidateStorage),
-				},
-			},
-		},
-	}
-
-	pp := &ProspectiveParachains{
-		View: mockView,
-	}
-
-	responseChan := make(chan []parachaintypes.CandidateHashAndRelayParent, 1)
-
-	mockAncestors := Ancestors{
-		parachaintypes.CandidateHash{Value: candidateRelayParent2}: {},
-		parachaintypes.CandidateHash{Value: candidateRelayParent3}: {},
-	}
-
-	msg := GetBackableCandidates{
-		RelayParentHash: candidateRelayParent1,
-		ParaId:          paraId,
-		RequestedQty:    3,
-		Ancestors:       mockAncestors,
-		Response:        responseChan,
-	}
-
-	pp.getBackableCandidates(msg)
-
-	select {
-	case result := <-responseChan:
-		assert.NotNil(t, result, "Result should not be nil")
-		assert.Equal(t, 3, len(result), "Expected 3 candidates to be returned")
-
-		expectedHashes := []parachaintypes.CandidateHash{
-			{Value: candidateRelayParent1},
-			{Value: candidateRelayParent2},
-			{Value: candidateRelayParent3},
-		}
-
-		for i, candidate := range result {
-			assert.Equal(t, expectedHashes[i], candidate.CandidateHash, "Candidate hash does not match")
-			assert.Equal(t, expectedHashes[i].Value, candidate.CandidateRelayParent, "Relay parent does not match")
-		}
-	default:
-		t.Fatal("No response received from getBackableCandidates")
-	}
-}
-
-func TestGetBackableCandidates_NoCandidatesFound(t *testing.T) {
-	candidateRelayParent := common.Hash{0x01}
-	paraId := parachaintypes.ParaID(1)
-
-	mockRelayParent := relayChainBlockInfo{
-		Hash:   candidateRelayParent,
-		Number: 10,
-	}
-
-	ancestors := []relayChainBlockInfo{}
-
-	baseConstraints := &parachaintypes.Constraints{
-		MinRelayParentNumber: 5,
-	}
-
-	mockScope, err := newScopeWithAncestors(mockRelayParent, baseConstraints, nil, 10, ancestors)
 	assert.NoError(t, err)
 
-	candidateStorage := newCandidateStorage()
+	type testCase struct {
+		name           string
+		view           *view
+		msg            GetBackableCandidates
+		expectedLength int
+	}
 
-	mockView := &View{
-		activeLeaves: map[common.Hash]bool{
-			candidateRelayParent: true,
+	cases := []testCase{
+		{
+			name: "relay_parent_inactive",
+			view: &view{
+				activeLeaves:   map[common.Hash]bool{},
+				perRelayParent: map[common.Hash]*relayParentData{},
+			},
+			msg: GetBackableCandidates{
+				RelayParentHash: candidateRelayParent1,
+				ParaId:          parachaintypes.ParaID(1),
+				RequestedQty:    1,
+				Ancestors:       Ancestors{},
+				Response:        make(chan []parachaintypes.CandidateHashAndRelayParent, 1),
+			},
+			expectedLength: 0,
 		},
-		perRelayParent: map[common.Hash]*relayParentData{
-			candidateRelayParent: {
-				fragmentChains: map[parachaintypes.ParaID]*fragmentChain{
-					paraId: newFragmentChain(mockScope, candidateStorage),
+		{
+			name: "active_leaves_empty",
+			view: &view{
+				activeLeaves: map[common.Hash]bool{},
+				perRelayParent: map[common.Hash]*relayParentData{
+					candidateRelayParent1: {
+						fragmentChains: map[parachaintypes.ParaID]*fragmentChain{},
+					},
 				},
 			},
+			msg: GetBackableCandidates{
+				RelayParentHash: candidateRelayParent1,
+				ParaId:          parachaintypes.ParaID(1),
+				RequestedQty:    1,
+				Ancestors:       Ancestors{},
+				Response:        make(chan []parachaintypes.CandidateHashAndRelayParent, 1),
+			},
+			expectedLength: 0,
+		},
+		{
+			name: "no_candidates_found",
+			view: &view{
+				activeLeaves: map[common.Hash]bool{
+					candidateRelayParent1: true,
+				},
+				perRelayParent: map[common.Hash]*relayParentData{
+					candidateRelayParent1: {
+						fragmentChains: map[parachaintypes.ParaID]*fragmentChain{},
+					},
+				},
+			},
+			msg: GetBackableCandidates{
+				RelayParentHash: candidateRelayParent1,
+				ParaId:          parachaintypes.ParaID(1),
+				RequestedQty:    1,
+				Ancestors:       Ancestors{},
+				Response:        make(chan []parachaintypes.CandidateHashAndRelayParent, 1),
+			},
+			expectedLength: 0,
+		},
+		{
+			name: "not_found_parachain_based_on_paraid",
+			view: &view{
+				activeLeaves: map[common.Hash]bool{
+					candidateRelayParent1: true,
+				},
+				perRelayParent: map[common.Hash]*relayParentData{
+					candidateRelayParent1: {
+						fragmentChains: map[parachaintypes.ParaID]*fragmentChain{},
+					},
+				},
+			},
+			msg: GetBackableCandidates{
+				RelayParentHash: candidateRelayParent1,
+				ParaId:          parachaintypes.ParaID(3),
+				RequestedQty:    1,
+				Ancestors:       Ancestors{},
+				Response:        make(chan []parachaintypes.CandidateHashAndRelayParent, 1),
+			},
+			expectedLength: 0,
+		},
+		{
+			name: "candidates_found",
+			view: &view{
+				activeLeaves: map[common.Hash]bool{
+					candidateRelayParent1: true,
+				},
+				perRelayParent: map[common.Hash]*relayParentData{
+					candidateRelayParent1: {
+						fragmentChains: map[parachaintypes.ParaID]*fragmentChain{
+							parachaintypes.ParaID(1): newFragmentChain(mockScope, candidateStorage),
+						},
+					},
+				},
+			},
+			msg: GetBackableCandidates{
+				RelayParentHash: candidateRelayParent1,
+				ParaId:          parachaintypes.ParaID(1),
+				RequestedQty:    2,
+				Ancestors:       Ancestors{},
+				Response:        make(chan []parachaintypes.CandidateHashAndRelayParent, 1),
+			},
+			expectedLength: 2,
 		},
 	}
 
-	pp := &ProspectiveParachains{
-		View: mockView,
-	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pp := &ProspectiveParachains{
+				View: tc.view,
+			}
 
-	responseChan := make(chan []parachaintypes.CandidateHashAndRelayParent, 1)
+			pp.getBackableCandidates(tc.msg)
 
-	mockAncestors := Ancestors{}
-
-	msg := GetBackableCandidates{
-		RelayParentHash: candidateRelayParent,
-		ParaId:          paraId,
-		RequestedQty:    3,
-		Ancestors:       mockAncestors,
-		Response:        responseChan,
-	}
-
-	pp.getBackableCandidates(msg)
-
-	select {
-	case result := <-responseChan:
-		assert.NotNil(t, result, "Result should not be nil")
-		assert.Equal(t, 0, len(result), "Expected 0 candidates to be returned")
-	default:
-		t.Fatal("No response received from getBackableCandidates")
+			select {
+			case result := <-tc.msg.Response:
+				assert.Equal(t, tc.expectedLength, len(result), "Unexpected number of candidates")
+			default:
+				t.Fatal("No response received from getBackableCandidates")
+			}
+		})
 	}
 }
