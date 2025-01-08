@@ -108,7 +108,7 @@ func NewReputationAggregator(sendImmediatelyIf func(rep UnifiedReputationChange)
 }
 
 // Send sends the accumulated reputation changes in a batch and clears the state.
-func (r *ReputationAggregator) Send(overseerCh chan<- any) {
+func (r *ReputationAggregator) Send(overseerCh chan<- NetworkBridgeTxMessage) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

@@ -15,7 +15,7 @@ var logger = log.NewFromGlobal(log.AddContext("pkg", "statement-distribution"))
 
 type StatementDistribution struct {
 	reputationAggregator parachainutil.ReputationAggregator
-	SubSystemToOverseer  chan<- any
+	SubSystemToOverseer  chan<- parachainutil.NetworkBridgeTxMessage
 }
 
 func (s *StatementDistribution) Run(
@@ -36,11 +36,11 @@ func (s *StatementDistribution) Run(
 			if err != nil {
 				logger.Errorf("error processing overseer message: %v", err)
 			}
-		case _ = <-v2CommChannel:
-			panic("Not Implemented")
-		case _ = <-receiverRespCh:
-			panic("Not Implemented")
-		case _ = <-retryReqCh:
+			// case _ = <-v2CommChannel:
+			// 	panic("Not Implemented")
+			// case _ = <-receiverRespCh:
+			// 	panic("Not Implemented")
+			// case _ = <-retryReqCh:
 			logger.Infof("received retry request, no action taken")
 		case <-reputationDelay.C:
 			// Trigger reputation aggregator logic
