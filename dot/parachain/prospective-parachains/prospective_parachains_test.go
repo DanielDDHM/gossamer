@@ -129,7 +129,7 @@ func TestGetMinimumRelayParents(t *testing.T) {
 	mockScope2, err := newScopeWithAncestors(mockRelayParent, baseConstraints, nil, 10, nil)
 	assert.NoError(t, err)
 
-	mockView := &View{
+	mockView := &view{
 		activeLeaves: map[common.Hash]bool{
 			common.BytesToHash([]byte("active_hash")): true,
 		},
@@ -173,7 +173,7 @@ func TestGetMinimumRelayParents(t *testing.T) {
 // TestGetMinimumRelayParents_NoActiveLeaves ensures that getMinimumRelayParents
 // correctly handles the case where there are no active leaves.
 func TestGetMinimumRelayParents_NoActiveLeaves(t *testing.T) {
-	mockView := &View{
+	mockView := &view{
 		activeLeaves:   map[common.Hash]bool{},
 		perRelayParent: map[common.Hash]*relayParentData{},
 	}
