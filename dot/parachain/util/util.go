@@ -64,6 +64,8 @@ type UnifiedReputationChange struct {
 	Reason string
 }
 
+const ReputationChangeInterval = 30 * time.Second
+
 // CostOrBenefit returns the cost or benefit of the reputation change.
 func (u UnifiedReputationChange) CostOrBenefit() int32 {
 	switch u.Type {
@@ -106,7 +108,7 @@ func NewReputationAggregator(sendImmediatelyIf func(rep UnifiedReputationChange)
 }
 
 // Send sends the accumulated reputation changes in a batch and clears the state.
-func (r *ReputationAggregator) Send(overseerCh chan<- NetworkBridgeTxMessage) {
+func (r *ReputationAggregator) Send(overseerCh chan<- any) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
