@@ -13,7 +13,7 @@ var (
 	errZeroLengthCycle                 = errors.New("candidate's parent head is equal to its output head. Would introduce a cycle") //nolint:lll
 	errCycle                           = errors.New("candidate would introduce a cycle")
 	errMultiplePaths                   = errors.New("candidate would introduce two paths to the same output state")
-	errIntroduceBackedCandidate        = errors.New("attempting to directly introduce a Backed candidate. It should first be introduced as Seconded") //nolint:lll
+	errIntroduceBackedCandidate        = errors.New("attempting to directly introduce a Backed candidate. It should first be introduced as Seconded") //nolint:lll,unused
 	errParentCandidateNotFound         = errors.New("could not find parent of the candidate")
 	errRelayParentMovedBackwards       = errors.New("relay parent would move backwards from the latest candidate in the chain")     //nolint:lll
 	errPersistedValidationDataMismatch = errors.New("candidate does not match the persisted validation data provided alongside it") //nolint:lll
@@ -74,9 +74,9 @@ func (e errRelayParentNotInScope) Error() string {
 
 type errUnexpectedAncestor struct {
 	// The block number that this error occurred at
-	number uint
+	number parachaintypes.BlockNumber
 	// The previous seen block number, which did not match `number`.
-	prev uint
+	prev parachaintypes.BlockNumber
 }
 
 func (e errUnexpectedAncestor) Error() string {
@@ -84,7 +84,7 @@ func (e errUnexpectedAncestor) Error() string {
 }
 
 type errDisallowedHrmpWatermark struct {
-	BlockNumber uint
+	BlockNumber parachaintypes.BlockNumber
 }
 
 func (e *errDisallowedHrmpWatermark) Error() string {
@@ -177,8 +177,8 @@ func (e *errCodeSizeTooLarge) Error() string {
 }
 
 type errRelayParentTooOld struct {
-	minAllowed uint
-	current    uint
+	minAllowed parachaintypes.BlockNumber
+	current    parachaintypes.BlockNumber
 }
 
 func (e *errRelayParentTooOld) Error() string {

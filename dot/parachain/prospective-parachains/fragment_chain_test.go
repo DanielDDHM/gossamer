@@ -280,7 +280,7 @@ func TestEarliestRelayParent(t *testing.T) {
 					Hash:   common.Hash{0x02},
 					Number: 9,
 				}
-				ancestorsMap := btree.NewMap[uint, relayChainBlockInfo](100)
+				ancestorsMap := btree.NewMap[parachaintypes.BlockNumber, relayChainBlockInfo](100)
 				ancestorsMap.Set(ancestor.Number, ancestor)
 				return &scope{
 					relayParent:     relayParent,
@@ -305,7 +305,7 @@ func TestEarliestRelayParent(t *testing.T) {
 				return &scope{
 					relayParent:     relayParent,
 					baseConstraints: baseConstraints,
-					ancestors:       btree.NewMap[uint, relayChainBlockInfo](100),
+					ancestors:       btree.NewMap[parachaintypes.BlockNumber, relayChainBlockInfo](100),
 				}
 			},
 			expect: relayChainBlockInfo{
@@ -488,23 +488,23 @@ func TestFragmentChainWithFreshScope(t *testing.T) {
 }
 
 func makeConstraints(
-	minRelayParentNumber uint,
-	validWatermarks []uint,
+	minRelayParentNumber parachaintypes.BlockNumber,
+	validWatermarks []parachaintypes.BlockNumber,
 	requiredParent parachaintypes.HeadData,
 ) *parachaintypes.Constraints {
 	return &parachaintypes.Constraints{
 		MinRelayParentNumber:  minRelayParentNumber,
 		MaxPoVSize:            1_000_000,
 		MaxCodeSize:           1_000_000,
-		UmpRemaining:          10,
-		UmpRemainingBytes:     1_000,
-		MaxUmpNumPerCandidate: 10,
-		DmpRemainingMessages:  make([]uint, 10),
-		HrmpInbound: parachaintypes.InboundHrmpLimitations{
+		UMPRemaining:          10,
+		UMPRemainingBytes:     1_000,
+		MaxNumUMPPerCandidate: 10,
+		DMPRemainingMessages:  make([]parachaintypes.BlockNumber, 10),
+		HRMPInbound: parachaintypes.InboundHRMPLimitations{
 			ValidWatermarks: validWatermarks,
 		},
-		HrmpChannelsOut:        make(map[parachaintypes.ParaID]parachaintypes.OutboundHrmpChannelLimitations),
-		MaxHrmpNumPerCandidate: 0,
+		HRMPChannelsOut:        make(map[parachaintypes.ParaID]parachaintypes.OutboundHRMPChannelLimitations),
+		MaxNumHRMPPerCandidate: 0,
 		RequiredParent:         requiredParent,
 		ValidationCodeHash:     parachaintypes.ValidationCodeHash(common.BytesToHash(bytes.Repeat([]byte{42}, 32))),
 		UpgradeRestriction:     nil,
@@ -585,7 +585,7 @@ func TestScopeRejectsAncestors(t *testing.T) {
 				},
 			},
 			maxDepth: 2,
-			baseConstraints: makeConstraints(8, []uint{8, 9},
+			baseConstraints: makeConstraints(8, []parachaintypes.BlockNumber{8, 9},
 				parachaintypes.HeadData{Data: []byte{0x01, 0x02, 0x03}}),
 			pendingAvailability: make([]*pendingAvailability, 0),
 			expectedError:       errUnexpectedAncestor{number: 8, prev: 10},
@@ -603,8 +603,9 @@ func TestScopeRejectsAncestors(t *testing.T) {
 					StorageRoot: common.BytesToHash(bytes.Repeat([]byte{69}, 32)),
 				},
 			},
-			maxDepth:            2,
-			baseConstraints:     makeConstraints(0, []uint{}, parachaintypes.HeadData{Data: []byte{1, 2, 3}}),
+			maxDepth: 2,
+			baseConstraints: makeConstraints(0, []parachaintypes.BlockNumber{},
+				parachaintypes.HeadData{Data: []byte{1, 2, 3}}),
 			pendingAvailability: make([]*pendingAvailability, 0),
 			expectedError:       errUnexpectedAncestor{number: 99999, prev: 0},
 		},
@@ -631,8 +632,9 @@ func TestScopeRejectsAncestors(t *testing.T) {
 					StorageRoot: common.BytesToHash(bytes.Repeat([]byte{69}, 32)),
 				},
 			},
-			maxDepth:            2,
-			baseConstraints:     makeConstraints(0, []uint{2}, parachaintypes.HeadData{Data: []byte{1, 2, 3}}),
+			maxDepth: 2,
+			baseConstraints: makeConstraints(0, []parachaintypes.BlockNumber{2},
+				parachaintypes.HeadData{Data: []byte{1, 2, 3}}),
 			pendingAvailability: make([]*pendingAvailability, 0),
 			expectedError:       errUnexpectedAncestor{number: 2, prev: 4},
 		},
@@ -679,7 +681,7 @@ func TestScopeOnlyTakesAncestorsUpToMin(t *testing.T) {
 	}
 
 	maxDepth := uint(2)
-	baseConstraints := makeConstraints(3, []uint{2}, parachaintypes.HeadData{Data: []byte{1, 2, 3}})
+	baseConstraints := makeConstraints(3, []parachaintypes.BlockNumber{2}, parachaintypes.HeadData{Data: []byte{1, 2, 3}})
 	pendingAvailability := make([]*pendingAvailability, 0)
 
 	scope, err := newScopeWithAncestors(relayParent, baseConstraints, pendingAvailability, maxDepth, ancestors)
@@ -943,7 +945,7 @@ func TestCandidateStorageMethods(t *testing.T) {
 }
 
 func TestInitAndPopulateFromEmpty(t *testing.T) {
-	baseConstraints := makeConstraints(0, []uint{0}, parachaintypes.HeadData{Data: []byte{0x0a}})
+	baseConstraints := makeConstraints(0, []parachaintypes.BlockNumber{0}, parachaintypes.HeadData{Data: []byte{0x0a}})
 
 	scope, err := newScopeWithAncestors(
 		relayChainBlockInfo{
@@ -1005,7 +1007,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 	}
 
 	firstParachainHead := parachaintypes.HeadData{Data: []byte{0x0a}}
-	baseConstraints := makeConstraints(0, []uint{0}, firstParachainHead)
+	baseConstraints := makeConstraints(0, []parachaintypes.BlockNumber{0}, firstParachainHead)
 
 	// helper function to hash the candidate and add its entry
 	// into the candidate storage
@@ -1071,10 +1073,10 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			// define a constraint that requires a parent head data
 			// that is different from candidate A parent head
 			*makeConstraints(relayParentAInfo.Number,
-				[]uint{relayParentAInfo.Number}, parachaintypes.HeadData{Data: []byte{0x0e}}),
+				[]parachaintypes.BlockNumber{relayParentAInfo.Number}, parachaintypes.HeadData{Data: []byte{0x0e}}),
 
 			// the min relay parent for candidate A is wrong
-			*makeConstraints(relayParentBInfo.Number, []uint{0}, firstParachainHead),
+			*makeConstraints(relayParentBInfo.Number, []parachaintypes.BlockNumber{0}, firstParachainHead),
 		}
 
 		for _, wrongConstraint := range wrongConstraints {
@@ -1834,7 +1836,7 @@ func TestPopulateAndCheckPotential(t *testing.T) {
 			require.ErrorIs(t, chain.canAddCandidateAsPotential(candidateAEntry), errCandidateAlreadyKnown)
 
 			// simulate the fact that candidate A, B and C have been included
-			baseConstraints := makeConstraints(0, []uint{0}, parachaintypes.HeadData{Data: []byte{0x0d}})
+			baseConstraints := makeConstraints(0, []parachaintypes.BlockNumber{0}, parachaintypes.HeadData{Data: []byte{0x0d}})
 			scope, err = newScopeWithAncestors(*relayParentCInfo, baseConstraints, nil, 2, ancestors)
 			require.NoError(t, err)
 
@@ -1923,7 +1925,7 @@ func TestFindAncestorPathAndFindBackableChainEmptyBestChain(t *testing.T) {
 	maxDepth := uint(10)
 
 	// Empty chain
-	baseConstraints := makeConstraints(0, []uint{0}, requiredParent)
+	baseConstraints := makeConstraints(0, []parachaintypes.BlockNumber{0}, requiredParent)
 
 	relayParentInfo := relayChainBlockInfo{
 		Number:      0,
@@ -2014,12 +2016,12 @@ func TestFindAncestorPathAndFindBackableChain(t *testing.T) {
 	}
 
 	relayParentInfo := relayChainBlockInfo{
-		Number:      uint(relayParentNumber),
+		Number:      parachaintypes.BlockNumber(relayParentNumber),
 		Hash:        relayParent,
 		StorageRoot: relayParentStorageRoot,
 	}
 
-	baseConstraints := makeConstraints(0, []uint{0}, requiredParent)
+	baseConstraints := makeConstraints(0, []parachaintypes.BlockNumber{0}, requiredParent)
 	scope, err := newScopeWithAncestors(
 		relayParentInfo,
 		baseConstraints,

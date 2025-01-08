@@ -23,17 +23,17 @@ type AsyncBackingParams struct {
 	AllowedAncestryLen uint32 `scale:"2"`
 }
 
-// InboundHrmpLimitations constraints on inbound HRMP channels.
-type InboundHrmpLimitations struct {
-	// An exhaustive set of all valid watermarks, sorted ascending.
+// InboundHRMPLimitations constraints on inbound HRMP channels.
+type InboundHRMPLimitations struct {
+	// An exhaustive set of all valid watermarks, sorted in ascending order.
 	//
 	// It's only expected to contain block numbers at which messages were
 	// previously sent to a para, excluding most recent head.
-	ValidWatermarks []uint
+	ValidWatermarks []BlockNumber
 }
 
-// OutboundHrmpChannelLimitations constraints on outbound HRMP channels.
-type OutboundHrmpChannelLimitations struct {
+// OutboundHRMPChannelLimitations constraints on outbound HRMP channels.
+type OutboundHRMPChannelLimitations struct {
 	// The maximum bytes that can be written to the channel.
 	BytesRemaining uint32
 	// The maximum messages that can be written to the channel.
@@ -45,25 +45,25 @@ type OutboundHrmpChannelLimitations struct {
 // be apparent from usage.
 type Constraints struct {
 	// The minimum relay-parent number accepted under these constraints.
-	MinRelayParentNumber uint
+	MinRelayParentNumber BlockNumber
 	// The maximum Proof-of-Validity size allowed, in bytes.
 	MaxPoVSize uint32
 	// The maximum new validation code size allowed, in bytes.
 	MaxCodeSize uint32
 	// The amount of UMP messages remaining.
-	UmpRemaining uint32
+	UMPRemaining uint32
 	// The amount of UMP bytes remaining.
-	UmpRemainingBytes uint32
+	UMPRemainingBytes uint32
 	// The maximum number of UMP messages allowed per candidate.
-	MaxUmpNumPerCandidate uint32
+	MaxNumUMPPerCandidate uint32
 	// Remaining DMP queue. Only includes sent-at block numbers.
-	DmpRemainingMessages []uint
+	DMPRemainingMessages []BlockNumber
 	// The limitations of all registered inbound HRMP channels.
-	HrmpInbound InboundHrmpLimitations
+	HRMPInbound InboundHRMPLimitations
 	// The limitations of all registered outbound HRMP channels.
-	HrmpChannelsOut map[ParaID]OutboundHrmpChannelLimitations
+	HRMPChannelsOut map[ParaID]OutboundHRMPChannelLimitations
 	// The maximum number of HRMP messages allowed per candidate.
-	MaxHrmpNumPerCandidate uint32
+	MaxNumHRMPPerCandidate uint32
 	// The required parent head-data of the parachain.
 	RequiredParent HeadData
 	// The expected validation-code-hash of this parachain.
@@ -77,11 +77,38 @@ type Constraints struct {
 
 // FutureValidationCode represents a tuple of BlockNumber and ValidationCodeHash
 type FutureValidationCode struct {
-	BlockNumber        uint
+	BlockNumber        BlockNumber
 	ValidationCodeHash ValidationCodeHash
 }
 
+// CandidatePendingAvailability represents informations about one candidate pending availability
+type CandidatePendingAvailability struct {
+	CandidateHash     CandidateHash
+	Descriptor        CandidateDescriptorV2
+	Commitments       CandidateCommitments
+	RelayParentNumber BlockNumber
+	MaxPoVSize        uint32
+}
+
+// BackingState holds the state of the backing system per-parachain, including
+// state-machine constraints and candidates pending availability
+type BackingState struct {
+	Constraints         Constraints
+	PendingAvailability []CandidatePendingAvailability
+}
+
 func (c *Constraints) Clone() *Constraints {
+	requiredParent := HeadData{
+		Data: make([]byte, len(c.RequiredParent.Data)),
+	}
+	copy(requiredParent.Data, c.RequiredParent.Data)
+
+	var upgradeRestriction *UpgradeRestriction
+	if c.UpgradeRestriction != nil {
+		restriction := *c.UpgradeRestriction
+		upgradeRestriction = &restriction
+	}
+
 	var futureValidationCode *FutureValidationCode
 	if c.FutureValidationCode != nil {
 		futureValidationCode = &FutureValidationCode{
@@ -94,18 +121,18 @@ func (c *Constraints) Clone() *Constraints {
 		MinRelayParentNumber:  c.MinRelayParentNumber,
 		MaxPoVSize:            c.MaxPoVSize,
 		MaxCodeSize:           c.MaxCodeSize,
-		UmpRemaining:          c.UmpRemaining,
-		UmpRemainingBytes:     c.UmpRemainingBytes,
-		MaxUmpNumPerCandidate: c.MaxUmpNumPerCandidate,
-		DmpRemainingMessages:  slices.Clone(c.DmpRemainingMessages),
-		HrmpInbound: InboundHrmpLimitations{
-			ValidWatermarks: slices.Clone(c.HrmpInbound.ValidWatermarks),
+		UMPRemaining:          c.UMPRemaining,
+		UMPRemainingBytes:     c.UMPRemainingBytes,
+		MaxNumUMPPerCandidate: c.MaxNumUMPPerCandidate,
+		DMPRemainingMessages:  slices.Clone(c.DMPRemainingMessages),
+		HRMPInbound: InboundHRMPLimitations{
+			ValidWatermarks: slices.Clone(c.HRMPInbound.ValidWatermarks),
 		},
-		HrmpChannelsOut:        maps.Clone(c.HrmpChannelsOut),
-		MaxHrmpNumPerCandidate: c.MaxHrmpNumPerCandidate,
-		RequiredParent:         c.RequiredParent,
+		HRMPChannelsOut:        maps.Clone(c.HRMPChannelsOut),
+		MaxNumHRMPPerCandidate: c.MaxNumHRMPPerCandidate,
+		RequiredParent:         requiredParent,
 		ValidationCodeHash:     c.ValidationCodeHash,
-		UpgradeRestriction:     c.UpgradeRestriction,
+		UpgradeRestriction:     upgradeRestriction,
 		FutureValidationCode:   futureValidationCode,
 	}
 }

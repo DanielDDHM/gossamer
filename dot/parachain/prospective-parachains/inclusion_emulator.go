@@ -27,18 +27,18 @@ type prospectiveCandidate struct {
 type relayChainBlockInfo struct {
 	Hash        common.Hash
 	StorageRoot common.Hash
-	Number      uint
+	Number      parachaintypes.BlockNumber
 }
 
 func checkModifications(c *parachaintypes.Constraints, modifications *constraintModifications) error {
 	if modifications.HrmpWatermark != nil && modifications.HrmpWatermark.Type == Trunk {
-		if !slices.Contains(c.HrmpInbound.ValidWatermarks, modifications.HrmpWatermark.Watermark()) {
+		if !slices.Contains(c.HRMPInbound.ValidWatermarks, modifications.HrmpWatermark.Watermark()) {
 			return &errDisallowedHrmpWatermark{BlockNumber: modifications.HrmpWatermark.Watermark()}
 		}
 	}
 
 	for id, outboundHrmpMod := range modifications.OutboundHrmp {
-		outbound, ok := c.HrmpChannelsOut[id]
+		outbound, ok := c.HRMPChannelsOut[id]
 		if !ok {
 			return &errNoSuchHrmpChannel{paraID: id}
 		}
@@ -62,26 +62,26 @@ func checkModifications(c *parachaintypes.Constraints, modifications *constraint
 		}
 	}
 
-	_, overflow := math.SafeSub(uint64(c.UmpRemaining), uint64(modifications.UmpMessagesSent))
+	_, overflow := math.SafeSub(uint64(c.UMPRemaining), uint64(modifications.UmpMessagesSent))
 	if overflow {
 		return &errUmpMessagesOverflow{
-			messagesRemaining: c.UmpRemaining,
+			messagesRemaining: c.UMPRemaining,
 			messagesSubmitted: modifications.UmpMessagesSent,
 		}
 	}
 
-	_, overflow = math.SafeSub(uint64(c.UmpRemainingBytes), uint64(modifications.UmpBytesSent))
+	_, overflow = math.SafeSub(uint64(c.UMPRemainingBytes), uint64(modifications.UmpBytesSent))
 	if overflow {
 		return &errUmpBytesOverflow{
-			bytesRemaining: c.UmpRemainingBytes,
+			bytesRemaining: c.UMPRemainingBytes,
 			bytesSubmitted: modifications.UmpBytesSent,
 		}
 	}
 
-	_, overflow = math.SafeSub(uint64(len(c.DmpRemainingMessages)), uint64(modifications.DmpMessagesProcessed))
+	_, overflow = math.SafeSub(uint64(len(c.DMPRemainingMessages)), uint64(modifications.DmpMessagesProcessed))
 	if overflow {
 		return &errDmpMessagesUnderflow{
-			messagesRemaining: uint32(len(c.DmpRemainingMessages)),
+			messagesRemaining: uint32(len(c.DMPRemainingMessages)),
 			messagesProcessed: modifications.DmpMessagesProcessed,
 		}
 	}
@@ -103,17 +103,17 @@ func applyModifications(c *parachaintypes.Constraints, modifications *constraint
 
 	if modifications.HrmpWatermark != nil {
 		pos, found := slices.BinarySearch(
-			newConstraints.HrmpInbound.ValidWatermarks,
+			newConstraints.HRMPInbound.ValidWatermarks,
 			modifications.HrmpWatermark.Watermark())
 
 		if found {
 			// Exact match, so this is OK in all cases.
-			newConstraints.HrmpInbound.ValidWatermarks = newConstraints.HrmpInbound.ValidWatermarks[pos+1:]
+			newConstraints.HRMPInbound.ValidWatermarks = newConstraints.HRMPInbound.ValidWatermarks[pos+1:]
 		} else {
 			switch modifications.HrmpWatermark.Type {
 			case Head:
 				// Updates to Head are always OK.
-				newConstraints.HrmpInbound.ValidWatermarks = newConstraints.HrmpInbound.ValidWatermarks[pos:]
+				newConstraints.HRMPInbound.ValidWatermarks = newConstraints.HRMPInbound.ValidWatermarks[pos:]
 			case Trunk:
 				// Trunk update landing on disallowed watermark is not OK.
 				return nil, &errDisallowedHrmpWatermark{BlockNumber: modifications.HrmpWatermark.Block}
@@ -122,7 +122,7 @@ func applyModifications(c *parachaintypes.Constraints, modifications *constraint
 	}
 
 	for id, outboundHrmpMod := range modifications.OutboundHrmp {
-		outbound, ok := newConstraints.HrmpChannelsOut[id]
+		outbound, ok := newConstraints.HRMPChannelsOut[id]
 		if !ok {
 			return nil, &errNoSuchHrmpChannel{id}
 		}
@@ -147,29 +147,29 @@ func applyModifications(c *parachaintypes.Constraints, modifications *constraint
 		outbound.MessagesRemaining -= outboundHrmpMod.MessagesSubmitted
 	}
 
-	if modifications.UmpMessagesSent > newConstraints.UmpRemaining {
+	if modifications.UmpMessagesSent > newConstraints.UMPRemaining {
 		return nil, &errUmpMessagesOverflow{
-			messagesRemaining: newConstraints.UmpRemaining,
+			messagesRemaining: newConstraints.UMPRemaining,
 			messagesSubmitted: modifications.UmpMessagesSent,
 		}
 	}
-	newConstraints.UmpRemaining -= modifications.UmpMessagesSent
+	newConstraints.UMPRemaining -= modifications.UmpMessagesSent
 
-	if modifications.UmpBytesSent > newConstraints.UmpRemainingBytes {
+	if modifications.UmpBytesSent > newConstraints.UMPRemainingBytes {
 		return nil, &errUmpBytesOverflow{
-			bytesRemaining: newConstraints.UmpRemainingBytes,
+			bytesRemaining: newConstraints.UMPRemainingBytes,
 			bytesSubmitted: modifications.UmpBytesSent,
 		}
 	}
-	newConstraints.UmpRemainingBytes -= modifications.UmpBytesSent
+	newConstraints.UMPRemainingBytes -= modifications.UmpBytesSent
 
-	if modifications.DmpMessagesProcessed > uint32(len(newConstraints.DmpRemainingMessages)) {
+	if modifications.DmpMessagesProcessed > uint32(len(newConstraints.DMPRemainingMessages)) {
 		return nil, &errDmpMessagesUnderflow{
-			messagesRemaining: uint32(len(newConstraints.DmpRemainingMessages)),
+			messagesRemaining: uint32(len(newConstraints.DMPRemainingMessages)),
 			messagesProcessed: modifications.DmpMessagesProcessed,
 		}
 	} else {
-		newConstraints.DmpRemainingMessages = newConstraints.DmpRemainingMessages[modifications.DmpMessagesProcessed:]
+		newConstraints.DMPRemainingMessages = newConstraints.DMPRemainingMessages[modifications.DmpMessagesProcessed:]
 	}
 
 	if modifications.CodeUpgradeApplied {
@@ -192,7 +192,7 @@ type outboundHrmpChannelModification struct {
 // hrmpWatermarkUpdate represents an update to the HRMP Watermark.
 type hrmpWatermarkUpdate struct {
 	Type  hrmpWatermarkUpdateType
-	Block uint
+	Block parachaintypes.BlockNumber
 }
 
 // hrmpWatermarkUpdateType defines the type of HrmpWatermarkUpdate.
@@ -204,7 +204,7 @@ const (
 )
 
 // Watermark returns the block number of the HRMP Watermark update.
-func (h hrmpWatermarkUpdate) Watermark() uint {
+func (h hrmpWatermarkUpdate) Watermark() parachaintypes.BlockNumber {
 	return h.Block
 }
 
@@ -346,10 +346,10 @@ func checkAgainstConstraints(
 
 	hrmpWatermark := hrmpWatermarkUpdate{
 		Type:  Trunk,
-		Block: uint(commitments.HrmpWatermark),
+		Block: parachaintypes.BlockNumber(commitments.HrmpWatermark),
 	}
 
-	if uint(commitments.HrmpWatermark) == relayParent.Number {
+	if parachaintypes.BlockNumber(commitments.HrmpWatermark) == relayParent.Number {
 		hrmpWatermark.Type = Head
 	}
 
@@ -477,21 +477,21 @@ func validateAgainstConstraints(
 	}
 
 	if modifications.DmpMessagesProcessed == 0 {
-		if len(constraints.DmpRemainingMessages) > 0 && constraints.DmpRemainingMessages[0] <= relayParent.Number {
+		if len(constraints.DMPRemainingMessages) > 0 && constraints.DMPRemainingMessages[0] <= relayParent.Number {
 			return errDmpAdvancementRule
 		}
 	}
 
-	if len(commitments.HorizontalMessages) > int(constraints.MaxHrmpNumPerCandidate) {
+	if len(commitments.HorizontalMessages) > int(constraints.MaxNumHRMPPerCandidate) {
 		return &errHrmpMessagesPerCandidateOverflow{
-			messagesAllowed:   constraints.MaxHrmpNumPerCandidate,
+			messagesAllowed:   constraints.MaxNumHRMPPerCandidate,
 			messagesSubmitted: uint32(len(commitments.HorizontalMessages)),
 		}
 	}
 
-	if modifications.UmpMessagesSent > constraints.MaxUmpNumPerCandidate {
+	if modifications.UmpMessagesSent > constraints.MaxNumUMPPerCandidate {
 		return &errUmpMessagesPerCandidateOverflow{
-			messagesAllowed:   constraints.MaxUmpNumPerCandidate,
+			messagesAllowed:   constraints.MaxNumUMPPerCandidate,
 			messagesSubmitted: modifications.UmpMessagesSent,
 		}
 	}
