@@ -14,7 +14,7 @@ func CreateStatementDistribution() (*StatementDistribution, chan parachainutil.N
 	subSystemToOverseer := make(chan parachainutil.NetworkBridgeTxMessage, 10)
 
 	return &StatementDistribution{
-		reputationAggregator: *mockAggregator,
+		reputationAggregator: mockAggregator,
 		SubSystemToOverseer:  subSystemToOverseer,
 	}, subSystemToOverseer
 }

@@ -14,7 +14,7 @@ import (
 var logger = log.NewFromGlobal(log.AddContext("pkg", "statement-distribution"))
 
 type StatementDistribution struct {
-	reputationAggregator parachainutil.ReputationAggregator
+	reputationAggregator *parachainutil.ReputationAggregator
 	SubSystemToOverseer  chan<- parachainutil.NetworkBridgeTxMessage
 }
 
