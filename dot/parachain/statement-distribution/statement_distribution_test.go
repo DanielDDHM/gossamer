@@ -1,12 +1,10 @@
 package statementdistribution
 
 import (
-	"context"
-
 	parachainutil "github.com/ChainSafe/gossamer/dot/parachain/util"
 )
 
-func CreateStatementDistribution() (*StatementDistribution, chan parachainutil.NetworkBridgeTxMessage) {
+func createStatementDistribution() (*StatementDistribution, chan parachainutil.NetworkBridgeTxMessage) {
 	mockAggregator := parachainutil.NewReputationAggregator(func(rep parachainutil.UnifiedReputationChange) bool {
 		return rep.Type == parachainutil.Malicious
 	})
@@ -19,10 +17,6 @@ func CreateStatementDistribution() (*StatementDistribution, chan parachainutil.N
 	}, subSystemToOverseer
 }
 
-func CreateChannels() (chan any, chan any, chan any, chan any) {
+func createChannels() (chan any, chan any, chan any, chan any) {
 	return make(chan any, 10), make(chan any, 10), make(chan any, 10), make(chan any, 10)
-}
-
-func CreateContext() (context.Context, context.CancelFunc) {
-	return context.WithCancel(context.Background())
 }

@@ -59,9 +59,9 @@ func (s *StatementDistribution) processMessage(msg any) error {
 	case statementedistributionmessages.Share:
 		// TODO #4170
 	case parachaintypes.ActiveLeavesUpdateSignal:
-		return s.ProcessActiveLeavesUpdateSignal(msg)
+		return s.processActiveLeavesUpdateSignal(msg)
 	case parachaintypes.BlockFinalizedSignal:
-		return s.ProcessBlockFinalizedSignal(msg)
+		return s.processBlockFinalizedSignal(msg)
 	default:
 		return parachaintypes.ErrUnknownOverseerMessage
 	}
@@ -72,12 +72,12 @@ func (s *StatementDistribution) Name() parachaintypes.SubSystemName {
 	return parachaintypes.StatementDistribution
 }
 
-func (s *StatementDistribution) ProcessActiveLeavesUpdateSignal(signal parachaintypes.ActiveLeavesUpdateSignal) error {
+func (s *StatementDistribution) processActiveLeavesUpdateSignal(signal parachaintypes.ActiveLeavesUpdateSignal) error {
 	// TODO #4173
 	return nil
 }
 
-func (s *StatementDistribution) ProcessBlockFinalizedSignal(signal parachaintypes.BlockFinalizedSignal) error {
+func (s *StatementDistribution) processBlockFinalizedSignal(signal parachaintypes.BlockFinalizedSignal) error {
 	// nothing to do here
 	return nil
 }
