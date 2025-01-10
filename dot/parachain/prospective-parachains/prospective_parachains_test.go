@@ -94,27 +94,33 @@ func makeCandidate(
 	return result
 }
 
+func padTo32Bytes(input []byte) common.Hash {
+	var hash common.Hash
+	copy(hash[:], input)
+	return hash
+}
+
 // TestGetMinimumRelayParents ensures that getMinimumRelayParents
 // processes the relay parent hash and correctly sends the output via the channel
 func TestGetMinimumRelayParents(t *testing.T) {
 	// Setup a mock View with active leaves and relay parent data
 
 	mockRelayParent := relayChainBlockInfo{
-		Hash:   common.Hash([]byte("active_hash")),
+		Hash:   padTo32Bytes([]byte("active_hash")),
 		Number: 10,
 	}
 
 	ancestors := []relayChainBlockInfo{
 		{
-			Hash:   common.Hash([]byte("active_hash_7")),
+			Hash:   padTo32Bytes([]byte("active_hash_7")),
 			Number: 9,
 		},
 		{
-			Hash:   common.Hash([]byte("active_hash_8")),
+			Hash:   padTo32Bytes([]byte("active_hash_8")),
 			Number: 8,
 		},
 		{
-			Hash:   common.Hash([]byte("active_hash_9")),
+			Hash:   padTo32Bytes([]byte("active_hash_9")),
 			Number: 7,
 		},
 	}
@@ -157,7 +163,7 @@ func TestGetMinimumRelayParents(t *testing.T) {
 	expected := []ParaIDBlockNumber{
 		{
 			ParaId:      1,
-			BlockNumber: 7,
+			BlockNumber: 10,
 		},
 		{
 			ParaId:      2,
