@@ -154,7 +154,7 @@ func TestGetBackableCandidates(t *testing.T) {
 	}
 
 	baseConstraints := &parachaintypes.Constraints{
-		MinRelayParentNumber: 5,
+		MinRelayParentNumber: 8,
 	}
 
 	mockScope, err := newScopeWithAncestors(mockRelayParent, baseConstraints, nil, 10, ancestors)
@@ -326,8 +326,11 @@ func TestGetBackableCandidates(t *testing.T) {
 				RelayParentHash: candidateRelayParent1,
 				ParaId:          parachaintypes.ParaID(1),
 				RequestedQty:    2,
-				Ancestors:       Ancestors{},
-				Response:        make(chan []parachaintypes.CandidateHashAndRelayParent, 1),
+				Ancestors: Ancestors{
+					parachaintypes.CandidateHash{Value: candidateRelayParent2}: struct{}{},
+					parachaintypes.CandidateHash{Value: candidateRelayParent3}: struct{}{},
+				},
+				Response: make(chan []parachaintypes.CandidateHashAndRelayParent, 1),
 			},
 			expectedLength: 2,
 		},
