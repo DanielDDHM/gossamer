@@ -2,84 +2,67 @@ package statementdistribution
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	"github.com/ChainSafe/gossamer/internal/log"
-
-	statementedistributionmessages "github.com/ChainSafe/gossamer/dot/parachain/statement-distribution/messages"
-	parachaintypes "github.com/ChainSafe/gossamer/dot/parachain/types"
 	parachainutil "github.com/ChainSafe/gossamer/dot/parachain/util"
+	"github.com/ChainSafe/gossamer/internal/log"
 )
 
 var logger = log.NewFromGlobal(log.AddContext("pkg", "statement-distribution"))
 
 type StatementDistribution struct {
-	reputationAggregator *parachainutil.ReputationAggregator
-	SubSystemToOverseer  chan<- parachainutil.NetworkBridgeTxMessage
+	SubSystemToOverseer chan<- parachainutil.NetworkBridgeTxMessage
 }
 
-func (s *StatementDistribution) Run(
-	ctx context.Context,
-	overseerToSubSystem <-chan any,
-	v2CommChannel <-chan any,
-	receiverRespCh <-chan any,
-	retryReqCh <-chan any,
-) {
+type MuxedMessage interface {
+	isMuxedMessage()
+}
+
+type overseerMessage struct {
+	inner any
+}
+
+func (*overseerMessage) isMuxedMessage() {}
+
+type responderMessage struct {
+	inner any // should be replaced with AttestedCandidateRequest type
+}
+
+func (*responderMessage) isMuxedMessage() {}
+
+// Run just receives the ctx and a channel from the overseer to subsystem
+func (s *StatementDistribution) Run(ctx context.Context, overseerToSubSystem <-chan any) {
+	// Inside the method Run, we spawn a goroutine to handle network incoming requests
+	// TODO: https://github.com/ChainSafe/gossamer/issues/4285
+	responderCh := make(chan any, 1)
+	go s.taskResponder(responderCh)
+
 	// Timer for reputation aggregator trigger
 	reputationDelay := time.NewTicker(parachainutil.ReputationChangeInterval) // Adjust the duration as needed
 	defer reputationDelay.Stop()
 
 	for {
-		select {
-		case msg := <-overseerToSubSystem:
-			err := s.processMessage(msg)
-			if err != nil {
-				logger.Errorf("error processing overseer message: %v", err)
-			}
-			// case _ = <-v2CommChannel:
-			// 	panic("Not Implemented")
-			// case _ = <-receiverRespCh:
-			// 	panic("Not Implemented")
-			// case _ = <-retryReqCh:
-			logger.Infof("received retry request, no action taken")
-		case <-reputationDelay.C:
-			// Trigger reputation aggregator logic
-			s.reputationAggregator.Send(s.SubSystemToOverseer)
-		case <-ctx.Done():
-			logger.Infof("shutting down: %v", ctx.Err())
-			return
+		message := s.awaitMessageFrom(overseerToSubSystem, responderCh)
+
+		switch innerMessage := message.(type) {
+		// Handle each muxed message type
+		default:
+			logger.Warn("Unhandled message type: " + fmt.Sprintf("%v", innerMessage))
 		}
 	}
 }
 
-func (s *StatementDistribution) processMessage(msg any) error {
-	switch msg := msg.(type) {
-	case statementedistributionmessages.Backed:
-		// TODO #4171
-	case statementedistributionmessages.Share:
-		// TODO #4170
-	case parachaintypes.ActiveLeavesUpdateSignal:
-		return s.processActiveLeavesUpdateSignal(msg)
-	case parachaintypes.BlockFinalizedSignal:
-		return s.processBlockFinalizedSignal(msg)
-	default:
-		return parachaintypes.ErrUnknownOverseerMessage
+func (s *StatementDistribution) taskResponder(responderCh chan any) {
+	// TODO: Implement taskResponder logic
+}
+
+// awaitMessageFrom waits for messages from either the overseerToSubSystem or responderCh
+func (s *StatementDistribution) awaitMessageFrom(overseerToSubSystem <-chan any, responderCh chan any) MuxedMessage {
+	select {
+	case msg := <-overseerToSubSystem:
+		return &overseerMessage{inner: msg}
+	case msg := <-responderCh:
+		return &responderMessage{inner: msg}
 	}
-	return nil
 }
-
-func (s *StatementDistribution) Name() parachaintypes.SubSystemName {
-	return parachaintypes.StatementDistribution
-}
-
-func (s *StatementDistribution) processActiveLeavesUpdateSignal(signal parachaintypes.ActiveLeavesUpdateSignal) error {
-	// TODO #4173
-	return nil
-}
-
-func (s *StatementDistribution) processBlockFinalizedSignal(signal parachaintypes.BlockFinalizedSignal) error {
-	// nothing to do here
-	return nil
-}
-
-func (s *StatementDistribution) Stop() {}
