@@ -31,6 +31,10 @@ type responderMessage struct {
 
 func (*responderMessage) isMuxedMessage() {}
 
+type reputationChangeMessage struct{}
+
+func (*reputationChangeMessage) isMuxedMessage() {}
+
 // Run just receives the ctx and a channel from the overseer to subsystem
 func (s *StatementDistribution) Run(ctx context.Context, overseerToSubSystem <-chan any) {
 	// Inside the method Run, we spawn a goroutine to handle network incoming requests
@@ -43,10 +47,11 @@ func (s *StatementDistribution) Run(ctx context.Context, overseerToSubSystem <-c
 	defer reputationDelay.Stop()
 
 	for {
-		message := s.awaitMessageFrom(overseerToSubSystem, responderCh)
+		message := s.awaitMessageFrom(overseerToSubSystem, responderCh, reputationDelay.C)
 
 		switch innerMessage := message.(type) {
-		// Handle each muxed message type
+		case *reputationChangeMessage:
+			logger.Info("Reputation change triggered.")
 		default:
 			logger.Warn("Unhandled message type: " + fmt.Sprintf("%v", innerMessage))
 		}
@@ -55,12 +60,18 @@ func (s *StatementDistribution) Run(ctx context.Context, overseerToSubSystem <-c
 
 func taskResponder(responderCh chan any) {}
 
-// awaitMessageFrom waits for messages from either the overseerToSubSystem or responderCh
-func (s *StatementDistribution) awaitMessageFrom(overseerToSubSystem <-chan any, responderCh chan any) MuxedMessage {
+// awaitMessageFrom waits for messages from either the overseerToSubSystem, responderCh, or reputationDelay
+func (s *StatementDistribution) awaitMessageFrom(
+	overseerToSubSystem <-chan any,
+	responderCh chan any,
+	reputationDelay <-chan time.Time,
+) MuxedMessage {
 	select {
 	case msg := <-overseerToSubSystem:
 		return &overseerMessage{inner: msg}
 	case msg := <-responderCh:
 		return &responderMessage{inner: msg}
+	case <-reputationDelay:
+		return &reputationChangeMessage{}
 	}
 }
