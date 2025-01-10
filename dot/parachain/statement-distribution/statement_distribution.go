@@ -12,7 +12,7 @@ import (
 var logger = log.NewFromGlobal(log.AddContext("pkg", "statement-distribution"))
 
 type StatementDistribution struct {
-	SubSystemToOverseer chan<- parachainutil.NetworkBridgeTxMessage
+	SubSystemToOverseer chan<- any
 }
 
 type MuxedMessage interface {
