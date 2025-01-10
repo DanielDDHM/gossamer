@@ -72,7 +72,7 @@ func makeCandidate(
 	commitmentsHash := commitments.Hash()
 
 	candidate := dummyCandidateReceiptBadSig(relayParent, &commitmentsHash)
-	candidate.CommitmentsHash = commitments.Hash()
+	candidate.CommitmentsHash = commitmentsHash
 	candidate.Descriptor.ParaID = paraID
 
 	pvdh, err := pvd.Hash()
@@ -98,6 +98,8 @@ func TestGetBackableCandidates(t *testing.T) {
 	candidateRelayParent3 := common.Hash{0x03}
 
 	paraId := parachaintypes.ParaID(1)
+	paraId2 := parachaintypes.ParaID(2)
+	paraId3 := parachaintypes.ParaID(3)
 
 	parentHead1 := parachaintypes.HeadData{Data: bytes.Repeat([]byte{0x01}, 32)}
 	parentHead2 := parachaintypes.HeadData{Data: bytes.Repeat([]byte{0x02}, 32)}
@@ -107,12 +109,11 @@ func TestGetBackableCandidates(t *testing.T) {
 	headData2 := parachaintypes.HeadData{Data: bytes.Repeat([]byte{0x02}, 32)}
 	headData3 := parachaintypes.HeadData{Data: bytes.Repeat([]byte{0x03}, 32)}
 
-	validationCodeHash := parachaintypes.ValidationCodeHash{0x01}
-	candidateRelayParentNumber := uint32(1)
+	validationCodeHash := parachaintypes.ValidationCodeHash{}
 
 	candidate1 := makeCandidate(
 		candidateRelayParent1,
-		candidateRelayParentNumber,
+		uint32(10),
 		paraId,
 		parentHead1,
 		headData1,
@@ -121,8 +122,8 @@ func TestGetBackableCandidates(t *testing.T) {
 
 	candidate2 := makeCandidate(
 		candidateRelayParent2,
-		candidateRelayParentNumber,
-		paraId,
+		uint32(9),
+		paraId2,
 		parentHead2,
 		headData2,
 		validationCodeHash,
@@ -130,8 +131,8 @@ func TestGetBackableCandidates(t *testing.T) {
 
 	candidate3 := makeCandidate(
 		candidateRelayParent3,
-		candidateRelayParentNumber,
-		paraId,
+		uint32(8),
+		paraId3,
 		parentHead3,
 		headData3,
 		validationCodeHash,
@@ -155,6 +156,8 @@ func TestGetBackableCandidates(t *testing.T) {
 
 	baseConstraints := &parachaintypes.Constraints{
 		MinRelayParentNumber: 8,
+		RequiredParent:       parentHead1,
+		MaxPoVSize:           MaxPoVSize,
 	}
 
 	mockScope, err := newScopeWithAncestors(mockRelayParent, baseConstraints, nil, 10, ancestors)
@@ -332,7 +335,7 @@ func TestGetBackableCandidates(t *testing.T) {
 				},
 				Response: make(chan []parachaintypes.CandidateHashAndRelayParent, 1),
 			},
-			expectedLength: 2,
+			expectedLength: 1,
 		},
 	}
 
