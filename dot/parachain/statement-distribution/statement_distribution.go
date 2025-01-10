@@ -36,7 +36,7 @@ func (s *StatementDistribution) Run(ctx context.Context, overseerToSubSystem <-c
 	// Inside the method Run, we spawn a goroutine to handle network incoming requests
 	// TODO: https://github.com/ChainSafe/gossamer/issues/4285
 	responderCh := make(chan any, 1)
-	go s.taskResponder(responderCh)
+	go taskResponder(responderCh)
 
 	// Timer for reputation aggregator trigger
 	reputationDelay := time.NewTicker(parachainutil.ReputationChangeInterval) // Adjust the duration as needed
@@ -53,9 +53,7 @@ func (s *StatementDistribution) Run(ctx context.Context, overseerToSubSystem <-c
 	}
 }
 
-func (s *StatementDistribution) taskResponder(responderCh chan any) {
-	// TODO: Implement taskResponder logic
-}
+func taskResponder(responderCh chan any) {}
 
 // awaitMessageFrom waits for messages from either the overseerToSubSystem or responderCh
 func (s *StatementDistribution) awaitMessageFrom(overseerToSubSystem <-chan any, responderCh chan any) MuxedMessage {
