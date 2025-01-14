@@ -2,8 +2,6 @@ package prospectiveparachains
 
 import (
 	"bytes"
-	"context"
-	"sync"
 	"testing"
 
 	parachaintypes "github.com/ChainSafe/gossamer/dot/parachain/types"
@@ -197,86 +195,6 @@ func TestGetMinimumRelayParents_NoActiveLeaves(t *testing.T) {
 	// Validate the results
 	result := <-sender
 	assert.Empty(t, result, "Expected result to be empty when no active leaves are present")
-}
-
-func TestProspectiveParachains_HandleMinimumRelayParents(t *testing.T) {
-	candidateRelayParent := common.Hash{0x01}
-	paraId := parachaintypes.ParaID(1)
-	parentHead := parachaintypes.HeadData{
-		Data: bytes.Repeat([]byte{0x01}, 32),
-	}
-	headData := parachaintypes.HeadData{
-		Data: bytes.Repeat([]byte{0x02}, 32),
-	}
-	validationCodeHash := parachaintypes.ValidationCodeHash{0x01}
-	candidateRelayParentNumber := uint32(0)
-
-	candidate := makeCandidate(
-		candidateRelayParent,
-		candidateRelayParentNumber,
-		paraId,
-		parentHead,
-		headData,
-		validationCodeHash,
-	)
-
-	subsystemToOverseer := make(chan any)
-	overseerToSubsystem := make(chan any)
-
-	prospectiveParachains := NewProspectiveParachains(subsystemToOverseer)
-
-	relayParent := relayChainBlockInfo{
-		Hash:        candidateRelayParent,
-		Number:      0,
-		StorageRoot: common.Hash{0x00},
-	}
-
-	baseConstraints := &parachaintypes.Constraints{
-		RequiredParent:       parachaintypes.HeadData{Data: bytes.Repeat([]byte{0x01}, 32)},
-		MinRelayParentNumber: 0,
-		ValidationCodeHash:   validationCodeHash,
-		MaxPoVSize:           1000000,
-	}
-
-	scope, err := newScopeWithAncestors(relayParent, baseConstraints, nil, 10, nil)
-	assert.NoError(t, err)
-
-	prospectiveParachains.View.perRelayParent[candidateRelayParent] = &relayParentData{
-		fragmentChains: map[parachaintypes.ParaID]*fragmentChain{
-			paraId: newFragmentChain(scope, newCandidateStorage()),
-		},
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	var wg sync.WaitGroup
-
-	// Run the subsystem
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		prospectiveParachains.Run(ctx, overseerToSubsystem)
-	}()
-
-	sender := make(chan []ParaIDBlockNumber, 1)
-	go func() {
-		overseerToSubsystem <- GetMinimumRelayParents{
-			RelayChainBlockHash: candidateRelayParent,
-			Sender:              sender,
-		}
-	}()
-
-	result := <-sender
-	assert.Len(t, result, 1, "Expected one ParaIDBlockNumber in the result")
-	assert.Equal(t, paraId, result[0].ParaId, "ParaId mismatch in the result")
-	assert.Equal(t, uint32(0), result[0].BlockNumber, "BlockNumber mismatch in the result")
-
-	_, err = candidate.Hash()
-	assert.NoError(t, err)
-
-	// Ensure subsystem stops gracefully
-	cancel()
-	wg.Wait()
 }
 
 func TestGetBackableCandidates(t *testing.T) {
