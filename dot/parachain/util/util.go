@@ -64,6 +64,8 @@ type UnifiedReputationChange struct {
 	Reason string
 }
 
+const ReputationChangeInterval = 30 * time.Second
+
 // CostOrBenefit returns the cost or benefit of the reputation change.
 func (u UnifiedReputationChange) CostOrBenefit() int32 {
 	switch u.Type {
